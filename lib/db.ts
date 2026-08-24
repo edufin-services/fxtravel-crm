@@ -197,8 +197,6 @@ export const DEFAULT_CHANNELS: Record<string, boolean> = {
   Ads: true,
   Email: true,
   "Referral/Others": true,
-  "Google Sheets": true,
-  Justdial: true,
 };
 
 export const DEFAULT_NOTIFICATION_PREFS: Record<string, boolean> = {

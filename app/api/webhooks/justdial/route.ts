@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     const lead = await createLead({
       ownerId: owner.id,
       name: String(name),
-      channel: "Justdial",
+      channel: "Referral/Others",
       value: 0,
       stage: "Initial",
       phone: cleanPhone || undefined,

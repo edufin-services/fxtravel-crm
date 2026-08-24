@@ -40,8 +40,6 @@ const channelPill: Record<string, string> = {
   Ads:      "bg-purple-50 text-purple-700 border-purple-200",
   Email:    "bg-blue-50 text-blue-700 border-blue-200",
   "Referral/Others": "bg-amber-50 text-amber-700 border-amber-200",
-  "Google Sheets": "bg-emerald-100/80 text-emerald-800 border-emerald-300",
-  Justdial: "bg-orange-50 text-orange-700 border-orange-200",
 };
 
 // ── Avatar helpers ─────────────────────────────────────────────────────────────

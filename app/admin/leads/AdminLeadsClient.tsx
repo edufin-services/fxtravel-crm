@@ -46,8 +46,6 @@ const channelPill: Record<string, string> = {
   Ads:      "bg-purple-50 text-purple-700 border-purple-200",
   Email:    "bg-blue-50 text-blue-700 border-blue-200",
   "Referral/Others": "bg-amber-50 text-amber-700 border-amber-200",
-  "Google Sheets": "bg-emerald-100/80 text-emerald-800 border-emerald-300",
-  Justdial: "bg-orange-50 text-orange-700 border-orange-200",
 };
 
 function fmt(v: number) {
@@ -131,7 +129,7 @@ export default function AdminLeadsClient({ initialLeads, agents }: { initialLead
   }
 
   return (
-    <div className="space-y-5 max-w-6xl">
+    <div className="space-y-5 w-full">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -180,7 +178,7 @@ export default function AdminLeadsClient({ initialLeads, agents }: { initialLead
 
       {/* ── KANBAN VIEW ────────────────────────────────────────────────────────── */}
       {viewMode === "kanban" ? (
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 items-start">
+        <div className="flex gap-4 overflow-x-auto pb-6 flex-1 items-start">
           {STAGES.map((stage) => {
             const stageLeads = filteredLeads.filter((l) => l.stage === stage);
             const meta = stageMeta[stage] ?? stageMeta.Initial;
@@ -192,7 +190,7 @@ export default function AdminLeadsClient({ initialLeads, agents }: { initialLead
                 onDragOver={(e) => { e.preventDefault(); setDragOverStage(stage); }}
                 onDragLeave={() => setDragOverStage(null)}
                 onDrop={() => handleDrop(stage)}
-                className={`flex flex-col rounded-2xl border bg-zinc-50/50 p-4 transition-all ${
+                className={`flex flex-1 min-w-[290px] max-w-[360px] flex-none flex-col rounded-2xl border bg-zinc-50/50 p-4 transition-all ${
                   isDragTarget ? "bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-200" : "border-zinc-200/80"
                 }`}
               >

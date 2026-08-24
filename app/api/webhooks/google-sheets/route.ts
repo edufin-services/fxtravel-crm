@@ -309,7 +309,7 @@ export async function POST(request: NextRequest) {
       name,
       phone: phone || undefined,
       email: email || undefined,
-      channel: "Google Sheets",
+      channel: "Referral/Others",
       stage: "Initial",
       value,
       serviceType,

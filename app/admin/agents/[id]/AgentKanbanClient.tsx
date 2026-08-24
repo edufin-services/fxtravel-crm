@@ -22,7 +22,8 @@ type Agent = {
 const stageMeta: Record<string, { dot: string; border: string; badge: string; text: string }> = {
   Initial:   { dot: "bg-blue-500",   border: "border-t-blue-400",   badge: "bg-blue-600 text-white",    text: "text-blue-600" },
   Connected: { dot: "bg-amber-500",  border: "border-t-amber-400",  badge: "bg-amber-600 text-white",   text: "text-amber-600" },
-  Completed: { dot: "bg-emerald-500",border: "border-t-emerald-400",badge: "bg-emerald-600 text-white", text: "text-emerald-600" },
+  Confirmed: { dot: "bg-emerald-500",border: "border-t-emerald-400",badge: "bg-emerald-600 text-white", text: "text-emerald-600" },
+  Closed:    { dot: "bg-red-500",    border: "border-t-red-400",    badge: "bg-red-600 text-white",     text: "text-red-600" },
 };
 
 // ── Card colour tints ───────────────────────────────────────────────────────────
@@ -47,6 +48,8 @@ const channelPill: Record<string, string> = {
   Ads:      "bg-purple-50 text-purple-700 border-purple-200",
   Email:    "bg-blue-50 text-blue-700 border-blue-200",
   "Referral/Others": "bg-amber-50 text-amber-700 border-amber-200",
+  "Google Sheets": "bg-emerald-100/80 text-emerald-800 border-emerald-300",
+  Justdial: "bg-orange-50 text-orange-700 border-orange-200",
 };
 
 const GRADIENTS: Record<string, string> = {
@@ -97,7 +100,7 @@ export default function AgentKanbanClient({ agent, initialLeads }: { agent: Agen
   }, [targetLeadId, leads]);
 
   const totalValue = useMemo(() => leads.reduce((s, l) => s + (l.value ?? 0), 0), [leads]);
-  const completedCount = useMemo(() => leads.filter((l) => l.stage === "Completed").length, [leads]);
+  const confirmedCount = useMemo(() => leads.filter((l) => l.stage === "Confirmed").length, [leads]);
 
   // Drag and drop handler
   const handleDrop = async (toStage: Stage) => {
@@ -253,8 +256,8 @@ export default function AgentKanbanClient({ agent, initialLeads }: { agent: Agen
             <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Pipeline Value</p>
           </div>
           <div className="rounded-xl border border-blue-200/80 bg-blue-50/60 px-4 py-2 text-center">
-            <p className="text-lg font-black text-blue-800">{completedCount}</p>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Completed</p>
+            <p className="text-lg font-black text-blue-800">{confirmedCount}</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Confirmed</p>
           </div>
 
           {/* View mode toggle */}
@@ -479,9 +482,9 @@ export default function AgentKanbanClient({ agent, initialLeads }: { agent: Agen
                                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round"/></svg>
                               </button>
                             ) : (
-                              <span className="flex items-center gap-1.5 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-bold text-emerald-700">
+                              <span className="flex items-center gap-1.5 rounded-xl bg-red-50 border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                Completed
+                                Closed
                               </span>
                             )}
                           </div>

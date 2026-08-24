@@ -25,7 +25,8 @@ const channelBg: Record<string, { badge: string; icon: string }> = {
 const stageColor: Record<string, string> = {
   Initial: "bg-gradient-to-r from-blue-500 to-indigo-500",
   Connected: "bg-gradient-to-r from-amber-500 to-orange-500",
-  Completed: "bg-gradient-to-r from-emerald-500 to-teal-500",
+  Confirmed: "bg-gradient-to-r from-emerald-500 to-teal-500",
+  Closed: "bg-gradient-to-r from-red-500 to-rose-600",
 };
 
 function formatValue(v: number): string {
@@ -59,7 +60,7 @@ export default async function StatsPage() {
     getTasksByOwner(session.userId),
   ]);
 
-  const wonLeads = leads.filter((l) => l.stage === "Completed");
+  const wonLeads = leads.filter((l) => l.stage === "Confirmed" || l.stage === "Closed");
   const winRate = leads.length > 0 ? (wonLeads.length / leads.length) * 100 : 0;
   const newLeadsLast30 = leads.filter(
     (l) => Date.now() - new Date(l.createdAt).getTime() < 30 * 24 * 60 * 60 * 1000
@@ -68,7 +69,7 @@ export default async function StatsPage() {
   const avgLeadValue = leads.length > 0
     ? Math.round(leads.reduce((s, l) => s + (l.value || 0), 0) / leads.length)
     : 0;
-  const activeLeads = leads.filter((l) => l.stage !== "Completed").length;
+  const activeLeads = leads.filter((l) => l.stage !== "Closed").length;
 
   const completedTasks = tasks.filter((t) => t.done).length;
   const openTasks = tasks.length - completedTasks;

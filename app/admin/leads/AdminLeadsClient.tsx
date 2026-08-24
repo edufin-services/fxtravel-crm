@@ -14,13 +14,15 @@ type Agent = { id: string; name: string; email: string; company: string };
 const STAGE_COLORS: Record<string, string> = {
   Initial: "bg-blue-50 text-blue-700",
   Connected: "bg-amber-50 text-amber-700",
-  Completed: "bg-emerald-50 text-emerald-700",
+  Confirmed: "bg-emerald-50 text-emerald-700",
+  Closed: "bg-red-50 text-red-700",
 };
 
 const stageMeta: Record<string, { dot: string; border: string; badge: string; text: string }> = {
   Initial:   { dot: "bg-blue-500",   border: "border-t-blue-400",   badge: "bg-blue-600 text-white",    text: "text-blue-600" },
   Connected: { dot: "bg-amber-500",  border: "border-t-amber-400",  badge: "bg-amber-600 text-white",   text: "text-amber-600" },
-  Completed: { dot: "bg-emerald-500",border: "border-t-emerald-400",badge: "bg-emerald-600 text-white", text: "text-emerald-600" },
+  Confirmed: { dot: "bg-emerald-500",border: "border-t-emerald-400",badge: "bg-emerald-600 text-white", text: "text-emerald-600" },
+  Closed:    { dot: "bg-red-500",    border: "border-t-red-400",    badge: "bg-red-600 text-white",     text: "text-red-600" },
 };
 
 const LEAD_COLORS = [
@@ -44,6 +46,8 @@ const channelPill: Record<string, string> = {
   Ads:      "bg-purple-50 text-purple-700 border-purple-200",
   Email:    "bg-blue-50 text-blue-700 border-blue-200",
   "Referral/Others": "bg-amber-50 text-amber-700 border-amber-200",
+  "Google Sheets": "bg-emerald-100/80 text-emerald-800 border-emerald-300",
+  Justdial: "bg-orange-50 text-orange-700 border-orange-200",
 };
 
 function fmt(v: number) {
@@ -306,9 +310,9 @@ export default function AdminLeadsClient({ initialLeads, agents }: { initialLead
                                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round"/></svg>
                               </button>
                             ) : (
-                              <span className="flex items-center gap-1.5 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-bold text-emerald-700">
+                              <span className="flex items-center gap-1.5 rounded-xl bg-red-50 border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                Completed
+                                Closed
                               </span>
                             )}
                           </div>

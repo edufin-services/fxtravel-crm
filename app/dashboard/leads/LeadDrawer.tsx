@@ -90,7 +90,7 @@ const NEET_STATUS_OPTIONS = ["", "Appeared", "Passed", "Pending", "Not Applicabl
 const COUNTRY_OPTIONS = ["Russia", "Kazakhstan", "Kyrgyzstan", "Georgia", "Philippines", "Bangladesh", "Nepal", "China", "Ukraine", "Other"];
 
 const stageColor: Record<string, string> = {
-  Initial: "bg-blue-500", Connected: "bg-amber-500", Completed: "bg-emerald-500",
+  Initial: "bg-blue-500", Connected: "bg-amber-500", Confirmed: "bg-emerald-500", Closed: "bg-red-500",
 };
 
 function initials(name: string) {

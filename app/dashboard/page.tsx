@@ -13,13 +13,15 @@ import { GreetingTitle, HeaderDate } from "./GreetingText";
 const stageColor: Record<string, string> = {
   Initial: "bg-gradient-to-r from-blue-500 to-indigo-500",
   Connected: "bg-gradient-to-r from-amber-500 to-orange-500",
-  Completed: "bg-gradient-to-r from-emerald-500 to-teal-500",
+  Confirmed: "bg-gradient-to-r from-emerald-500 to-teal-500",
+  Closed: "bg-gradient-to-r from-red-500 to-rose-600",
 };
 
 const stageBadge: Record<string, string> = {
   Initial: "bg-blue-50 text-blue-700 border-blue-200/60",
   Connected: "bg-amber-50 text-amber-700 border-amber-200/60",
-  Completed: "bg-emerald-50 text-emerald-700 border-emerald-200/60",
+  Confirmed: "bg-emerald-50 text-emerald-700 border-emerald-200/60",
+  Closed: "bg-red-50 text-red-700 border-red-200/60",
 };
 
 const channelBadge: Record<string, { badge: string; icon: string }> = {
@@ -94,8 +96,8 @@ export default async function DashboardPage() {
   const newLeadsCount = leads.filter(
     (l) => Date.now() - new Date(l.createdAt).getTime() < 7 * 24 * 60 * 60 * 1000
   ).length;
-  const activeLeads = leads.filter((l) => l.stage !== "Completed").length;
-  const wonCount = leads.filter((l) => l.stage === "Completed").length;
+  const activeLeads = leads.filter((l) => l.stage !== "Closed").length;
+  const wonCount = leads.filter((l) => l.stage === "Confirmed" || l.stage === "Closed").length;
   const conversionRate = leads.length > 0 ? ((wonCount / leads.length) * 100).toFixed(1) : "0.0";
   const totalPipelineValue = leads.reduce((s, l) => s + (l.value || 0), 0);
   const firstName = user.name.split(" ")[0];

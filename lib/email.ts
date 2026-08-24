@@ -1,9 +1,10 @@
 import nodemailer from "nodemailer";
 
-// All stages after "Interested" that should trigger an email to the lead
+// All stages after "Initial" that should trigger an email to the lead
 export const EMAIL_STAGES = new Set([
   "Connected",
-  "Completed",
+  "Confirmed",
+  "Closed",
 ]);
 
 type Template = { subject: string; heading: string; body: string };
@@ -14,10 +15,15 @@ const STAGE_TEMPLATES: Record<string, Template> = {
     heading: "Connected Stage 🤝",
     body: "Your application is now in the <strong>Connected</strong> stage. Our team will contact you with details.",
   },
-  Completed: {
-    subject: "Congratulations - Order Completed!",
-    heading: "Order Completed ✅",
-    body: "Congratulations! Your order/application has reached the <strong>Completed</strong> stage.",
+  Confirmed: {
+    subject: "Congratulations - Order Confirmed!",
+    heading: "Order Confirmed 🎯",
+    body: "Congratulations! Your order/application has reached the <strong>Confirmed</strong> stage.",
+  },
+  Closed: {
+    subject: "Order Closed - Completed!",
+    heading: "Order Closed ✅",
+    body: "Your order/application has reached the final <strong>Closed</strong> stage.",
   },
 };
 

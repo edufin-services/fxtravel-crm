@@ -22,7 +22,8 @@ type Agent = { id: string; name: string; email: string; company: string };
 const STAGE_COLORS: Record<string, string> = {
   Initial: "bg-blue-50 text-blue-700",
   Connected: "bg-amber-50 text-amber-700",
-  Completed: "bg-emerald-50 text-emerald-700",
+  Confirmed: "bg-emerald-50 text-emerald-700",
+  Closed: "bg-red-50 text-red-700",
 };
 
 function fmt(v: number) {

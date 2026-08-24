@@ -3,6 +3,7 @@ import { getSession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { formatRelativeTime } from "@/lib/format";
+import { STAGES } from "@/lib/constants";
 
 import { HeaderDate } from "@/app/dashboard/GreetingText";
 
@@ -47,12 +48,12 @@ export default async function AdminDashboardPage() {
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const newThisWeek = leads.filter((l) => new Date(l.createdAt).getTime() >= sevenDaysAgo).length;
 
-  const completedCount = stageCount["Completed"] ?? 0;
+  const completedCount = (stageCount["Confirmed"] ?? 0) + (stageCount["Closed"] ?? 0);
   const conversionRate = totalLeads > 0 ? Math.round((completedCount / totalLeads) * 100) : 0;
 
   function fmt(v: number) {
     if (v >= 1_00_00_000) return `₹${(v / 1_00_00_000).toFixed(1)}Cr`;
-    if (v >= 1_00_000) return `₹${(v / 1_00_000).toFixed(1)}L`;
+    if (v >= 1_00_00_000) return `₹${(v / 1_00_000).toFixed(1)}L`;
     if (v >= 1000) return `₹${(v / 1000).toFixed(1)}K`;
     return `₹${v}`;
   }
@@ -60,7 +61,8 @@ export default async function AdminDashboardPage() {
   const STAGE_META: Record<string, { dot: string; bar: string; text: string }> = {
     Initial:   { dot: "bg-blue-500",   bar: "bg-gradient-to-r from-blue-500 to-indigo-500", text: "text-blue-700" },
     Connected: { dot: "bg-amber-500",  bar: "bg-gradient-to-r from-amber-500 to-orange-500", text: "text-amber-700" },
-    Completed: { dot: "bg-emerald-500",bar: "bg-gradient-to-r from-emerald-500 to-teal-500", text: "text-emerald-700" },
+    Confirmed: { dot: "bg-emerald-500",bar: "bg-gradient-to-r from-emerald-500 to-teal-500", text: "text-emerald-700" },
+    Closed:    { dot: "bg-red-500",    bar: "bg-gradient-to-r from-red-500 to-rose-600", text: "text-red-700" },
   };
 
   const CHANNEL_META: Record<string, { badge: string; icon: string }> = {
@@ -217,15 +219,15 @@ export default async function AdminDashboardPage() {
                 </span>
                 Global Pipeline Breakdown
               </h2>
-              <p className="text-xs text-zinc-400 mt-0.5">{totalLeads} total leads across 3 pipeline stages</p>
+              <p className="text-xs text-zinc-400 mt-0.5">{totalLeads} total leads across 4 pipeline stages</p>
             </div>
           </div>
 
           <div className="space-y-4">
-            {(["Initial", "Connected", "Completed"] as const).map((stage) => {
+            {STAGES.map((stage) => {
               const count = stageCount[stage] ?? 0;
               const pct = totalLeads > 0 ? Math.round((count / totalLeads) * 100) : 0;
-              const meta = STAGE_META[stage];
+              const meta = STAGE_META[stage] ?? STAGE_META["Initial"];
               return (
                 <div key={stage} className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs font-bold">
@@ -347,7 +349,9 @@ export default async function AdminDashboardPage() {
                   <p className="text-[11px] text-zinc-400 mt-0.5">{lead.channel} · {formatRelativeTime(lead.createdAt)}</p>
                 </div>
                 <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold border ${
-                  lead.stage === "Completed"
+                  lead.stage === "Closed"
+                    ? "bg-red-100 text-red-700 border-red-200"
+                    : lead.stage === "Confirmed"
                     ? "bg-emerald-100 text-emerald-700 border-emerald-200"
                     : lead.stage === "Connected"
                     ? "bg-amber-100 text-amber-700 border-amber-200"

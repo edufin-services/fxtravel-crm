@@ -15,6 +15,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Fxpertise",
   description: "AI CRM for sales & messaging automation",
+  icons: {
+    icon: "/fx-icon1.png",
+    shortcut: "/fx-icon1.png",
+    apple: "/fx-icon1.png",
+  },
 };
 
 export default function RootLayout({

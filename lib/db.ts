@@ -197,6 +197,8 @@ export const DEFAULT_CHANNELS: Record<string, boolean> = {
   Ads: true,
   Email: true,
   "Referral/Others": true,
+  "Google Sheets": true,
+  Justdial: true,
 };
 
 export const DEFAULT_NOTIFICATION_PREFS: Record<string, boolean> = {
@@ -219,6 +221,9 @@ function toPlain<T>(doc: unknown): T {
     } else {
       result[k] = v;
     }
+  }
+  if (result.stage === "Completed") {
+    result.stage = "Confirmed";
   }
   return result as T;
 }

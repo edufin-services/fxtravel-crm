@@ -17,7 +17,7 @@ export const STAGES = [
 ] as const;
 export type Stage = (typeof STAGES)[number];
 
-export const CHANNELS = ["WhatsApp", "Instagram", "Ads", "Email", "Referral/Others"] as const;
+export const CHANNELS = ["WhatsApp", "Instagram", "Facebook", "Ads", "Email", "Referral/Others"] as const;
 export type Channel = (typeof CHANNELS)[number];
 
 export const CLIENT_VISIT_STAGES = ["Live", "Disc in progress", "Converted", "Not interested"] as const;

@@ -266,3 +266,23 @@ const AdminSettingsSchema = new Schema({
 });
 
 export const AdminSettingsModel = models.AdminSettings ?? model("AdminSettings", AdminSettingsSchema);
+
+// ── Imported / Excel Leads ────────────────────────────────────────────────
+
+const ImportedLeadSchema = new Schema({
+  id: { type: String, required: true, unique: true },
+  name: { type: String, required: true },
+  phone: { type: String, required: true },
+  rawPhone: { type: String, default: "" },
+  platform: { type: String, default: "fb" },
+  channel: { type: String, default: "Facebook" },
+  status: { type: String, enum: ["pending", "assigned", "ignored"], default: "pending", index: true },
+  assignedToUserId: { type: String, default: null, index: true },
+  assignedToUserName: { type: String, default: null },
+  assignedLeadId: { type: String, default: null },
+  assignedAt: { type: String, default: null },
+  uploadedAt: { type: String, required: true, index: true },
+  fileName: { type: String, default: "" },
+});
+
+export const ImportedLeadModel = models.ImportedLead ?? model("ImportedLead", ImportedLeadSchema);

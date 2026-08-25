@@ -7,6 +7,7 @@ import {
   ContactModel,
   ConversationModel,
   CorporateModel,
+  ImportedLeadModel,
   LeadModel,
   MessageModel,
   ResetTokenModel,
@@ -189,11 +190,28 @@ export type WebsiteLead = {
   createdAt: string;
 };
 
+export type ImportedLead = {
+  id: string;
+  name: string;
+  phone: string;
+  rawPhone?: string;
+  platform?: string;
+  channel?: Channel;
+  status: "pending" | "assigned" | "ignored";
+  assignedToUserId?: string | null;
+  assignedToUserName?: string | null;
+  assignedLeadId?: string | null;
+  assignedAt?: string | null;
+  uploadedAt: string;
+  fileName?: string;
+};
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 export const DEFAULT_CHANNELS: Record<string, boolean> = {
   WhatsApp: true,
   Instagram: true,
+  Facebook: true,
   Ads: true,
   Email: true,
   "Referral/Others": true,
@@ -809,3 +827,173 @@ export async function updateAdminSettings(updates: Record<string, any>): Promise
   );
   return getAdminSettings();
 }
+
+// ── Imported / Excel Leads ────────────────────────────────────────────────
+
+export async function getImportedLeads(filter?: { status?: string }): Promise<ImportedLead[]> {
+  await dbConnect();
+  const query: Record<string, any> = {};
+  if (filter?.status && filter.status !== "all") {
+    query.status = filter.status;
+  }
+  const docs = await ImportedLeadModel.find(query).sort({ uploadedAt: -1 });
+  return docs.map((d) => toPlain<ImportedLead>(d));
+}
+
+export async function createImportedLeads(
+  leads: Array<Omit<ImportedLead, "id" | "uploadedAt" | "status">>
+): Promise<ImportedLead[]> {
+  await dbConnect();
+  const now = new Date().toISOString();
+  const docsToInsert = leads.map((l) => ({
+    ...l,
+    id: crypto.randomUUID(),
+    status: "pending",
+    uploadedAt: now,
+  }));
+  if (docsToInsert.length === 0) return [];
+  const created = await ImportedLeadModel.insertMany(docsToInsert);
+  return created.map((d) => toPlain<ImportedLead>(d));
+}
+
+export async function assignImportedLead(
+  id: string,
+  userId: string,
+  userName: string
+): Promise<{ importedLead: ImportedLead; lead: Lead } | null> {
+  await dbConnect();
+  const doc = await ImportedLeadModel.findOne({ id });
+  if (!doc) return null;
+
+  const imp = toPlain<ImportedLead>(doc);
+  const now = new Date().toISOString();
+
+  // Create lead in CRM with initial stage
+  const createdLead = await createLead({
+    ownerId: userId,
+    name: imp.name,
+    phone: imp.phone,
+    channel: (imp.channel as Channel) || "Facebook",
+    stage: "Initial",
+    value: 0,
+    notes: `Imported via Admin XLS Upload · Platform: ${imp.platform || "N/A"}${imp.fileName ? ` · File: ${imp.fileName}` : ""}`,
+    services: [],
+  });
+
+  // Update ImportedLead record
+  await ImportedLeadModel.updateOne(
+    { id },
+    {
+      $set: {
+        status: "assigned",
+        assignedToUserId: userId,
+        assignedToUserName: userName,
+        assignedLeadId: createdLead.id,
+        assignedAt: now,
+      },
+    }
+  );
+
+  const updatedImp = await ImportedLeadModel.findOne({ id });
+  return {
+    importedLead: toPlain<ImportedLead>(updatedImp!),
+    lead: createdLead,
+  };
+}
+
+export async function bulkAssignImportedLeads(
+  ids: string[],
+  userId: string,
+  userName: string
+): Promise<{ assignedCount: number; leads: Lead[] }> {
+  await dbConnect();
+  const docs = await ImportedLeadModel.find({ id: { $in: ids } });
+  const leads: Lead[] = [];
+  const now = new Date().toISOString();
+
+  for (const doc of docs) {
+    const imp = toPlain<ImportedLead>(doc);
+    const createdLead = await createLead({
+      ownerId: userId,
+      name: imp.name,
+      phone: imp.phone,
+      channel: (imp.channel as Channel) || "Facebook",
+      stage: "Initial",
+      value: 0,
+      notes: `Imported via Admin XLS Upload · Platform: ${imp.platform || "N/A"}${imp.fileName ? ` · File: ${imp.fileName}` : ""}`,
+      services: [],
+    });
+    leads.push(createdLead);
+
+    await ImportedLeadModel.updateOne(
+      { id: imp.id },
+      {
+        $set: {
+          status: "assigned",
+          assignedToUserId: userId,
+          assignedToUserName: userName,
+          assignedLeadId: createdLead.id,
+          assignedAt: now,
+        },
+      }
+    );
+  }
+
+  return { assignedCount: leads.length, leads };
+}
+
+export async function distributeImportedLeads(
+  ids: string[],
+  users: Array<{ id: string; name: string }>
+): Promise<{ assignedCount: number; leads: Lead[] }> {
+  if (!users.length || !ids.length) return { assignedCount: 0, leads: [] };
+  await dbConnect();
+  const docs = await ImportedLeadModel.find({ id: { $in: ids } });
+  const leads: Lead[] = [];
+  const now = new Date().toISOString();
+
+  for (let i = 0; i < docs.length; i++) {
+    const doc = docs[i];
+    const user = users[i % users.length];
+    const imp = toPlain<ImportedLead>(doc);
+
+    const createdLead = await createLead({
+      ownerId: user.id,
+      name: imp.name,
+      phone: imp.phone,
+      channel: (imp.channel as Channel) || "Facebook",
+      stage: "Initial",
+      value: 0,
+      notes: `Imported via Admin XLS Upload · Platform: ${imp.platform || "N/A"}${imp.fileName ? ` · File: ${imp.fileName}` : ""}`,
+      services: [],
+    });
+    leads.push(createdLead);
+
+    await ImportedLeadModel.updateOne(
+      { id: imp.id },
+      {
+        $set: {
+          status: "assigned",
+          assignedToUserId: user.id,
+          assignedToUserName: user.name,
+          assignedLeadId: createdLead.id,
+          assignedAt: now,
+        },
+      }
+    );
+  }
+
+  return { assignedCount: leads.length, leads };
+}
+
+export async function deleteImportedLead(id: string): Promise<void> {
+  await dbConnect();
+  await ImportedLeadModel.deleteOne({ id });
+}
+
+export async function deleteImportedLeads(ids: string[]): Promise<number> {
+  await dbConnect();
+  const res = await ImportedLeadModel.deleteMany({ id: { $in: ids } });
+  return res.deletedCount || 0;
+}
+

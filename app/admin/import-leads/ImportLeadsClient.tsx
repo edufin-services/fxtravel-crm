@@ -88,7 +88,7 @@ export default function ImportLeadsClient({
     setToastMessage({ text, type });
     setTimeout(() => {
       setToastMessage(null);
-    }, 4500);
+    }, 5500);
   }
 
   // Filtered leads
@@ -131,7 +131,43 @@ export default function ImportLeadsClient({
     return { total, pending, assigned };
   }, [leads]);
 
-  // Handle client-side file reading and parsing
+  // Preview deduplication analysis
+  const previewAnalysis = useMemo(() => {
+    const existingPhoneSet = new Set(
+      leads.map((l) => (l.phone || "").replace(/\D/g, "").slice(-10)).filter((p) => p.length >= 7)
+    );
+    const seenInPreview = new Set<string>();
+
+    let newCount = 0;
+    let dupCount = 0;
+
+    const analyzed = parsedPreview.map((item) => {
+      const cleanP = (item.phone || "").replace(/\D/g, "").slice(-10);
+      const key = cleanP || item.name.toLowerCase().trim();
+
+      let isDuplicate = false;
+      let reason = "";
+
+      if (cleanP && existingPhoneSet.has(cleanP)) {
+        isDuplicate = true;
+        reason = "Already in CRM / Queue";
+      } else if (seenInPreview.has(key)) {
+        isDuplicate = true;
+        reason = "Duplicate in this file";
+      } else {
+        seenInPreview.add(key);
+      }
+
+      if (isDuplicate) dupCount++;
+      else newCount++;
+
+      return { ...item, isDuplicate, reason };
+    });
+
+    return { analyzed, newCount, dupCount };
+  }, [parsedPreview, leads]);
+
+  // Handle client-side file reading and parsing (supports .csv, .xls, .xlsx)
   function parseExcelFile(file: File) {
     setIsUploading(true);
     const reader = new FileReader();
@@ -142,7 +178,7 @@ export default function ImportLeadsClient({
         const workbook = XLSX.read(data, { type: "array" });
         const firstSheetName = workbook.SheetNames[0];
         if (!firstSheetName) {
-          showToast("The uploaded file does not contain any sheets.", "error");
+          showToast("The uploaded file does not contain any readable sheets or data.", "error");
           setIsUploading(false);
           return;
         }
@@ -151,7 +187,7 @@ export default function ImportLeadsClient({
         const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
 
         if (rows.length === 0) {
-          showToast("No rows found in the uploaded spreadsheet.", "error");
+          showToast("No rows found in the uploaded file.", "error");
           setIsUploading(false);
           return;
         }
@@ -254,7 +290,7 @@ export default function ImportLeadsClient({
         }
 
         if (extracted.length === 0) {
-          showToast("Could not find valid name/phone columns in spreadsheet.", "error");
+          showToast("Could not find valid name or phone columns in the file.", "error");
           setIsUploading(false);
           return;
         }
@@ -280,7 +316,7 @@ export default function ImportLeadsClient({
     e.target.value = "";
   }
 
-  // Upload parsed leads to server
+  // Upload parsed leads to server with automatic deduplication
   async function confirmUploadLeads(assignToUserId?: string) {
     if (parsedPreview.length === 0) return;
     setIsUploading(true);
@@ -303,7 +339,17 @@ export default function ImportLeadsClient({
         throw new Error(data.error || "Failed to import leads");
       }
 
-      const newLeads: ImportedLead[] = data.leads;
+      const newLeads: ImportedLead[] = data.leads || [];
+      const skippedCount: number = data.skippedCount || 0;
+
+      if (newLeads.length === 0) {
+        showToast(`All ${skippedCount} leads in this file already exist. No duplicate leads were added.`, "error");
+        setShowPreviewModal(false);
+        setParsedPreview([]);
+        setPreviewFileName("");
+        setIsUploading(false);
+        return;
+      }
 
       // If user selected immediate assignment during upload
       if (assignToUserId) {
@@ -332,15 +378,23 @@ export default function ImportLeadsClient({
           }));
           setLeads((prev) => [...updatedWithAssign, ...prev]);
           showToast(
-            `Successfully imported ${newLeads.length} leads and assigned to ${targetUser?.name || "User"} (Initial CRM stage).`
+            `Imported ${newLeads.length} new leads and assigned to ${targetUser?.name || "User"} (Initial stage).${
+              skippedCount > 0 ? ` (${skippedCount} duplicate leads skipped)` : ""
+            }`
           );
         } else {
           setLeads((prev) => [...newLeads, ...prev]);
-          showToast(`Imported ${newLeads.length} leads into pending queue.`, "success");
+          showToast(
+            `Imported ${newLeads.length} new leads.${skippedCount > 0 ? ` (${skippedCount} duplicates skipped)` : ""}`
+          );
         }
       } else {
         setLeads((prev) => [...newLeads, ...prev]);
-        showToast(`Successfully imported ${newLeads.length} leads into pending queue.`);
+        showToast(
+          `Imported ${newLeads.length} new leads into pending queue.${
+            skippedCount > 0 ? ` (${skippedCount} duplicates skipped)` : ""
+          }`
+        );
       }
 
       setShowPreviewModal(false);
@@ -552,8 +606,8 @@ export default function ImportLeadsClient({
     });
   }
 
-  // Download Sample Template matching user screenshot
-  function downloadSampleTemplate() {
+  // Download Sample Template (.csv or .xlsx)
+  function downloadSampleTemplate(format: "xlsx" | "csv" = "xlsx") {
     const sampleData = [
       { platform: "fb", full_name: "Ritu Singh", whatsapp_number: "+918178740947" },
       { platform: "ig", full_name: "Aadivasi Arvind", whatsapp_number: "+916264140138" },
@@ -565,7 +619,11 @@ export default function ImportLeadsClient({
     const ws = XLSX.utils.json_to_sheet(sampleData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Leads");
-    XLSX.writeFile(wb, "crm_leads_sample_template.xlsx");
+    if (format === "csv") {
+      XLSX.writeFile(wb, "crm_leads_sample_template.csv", { bookType: "csv" });
+    } else {
+      XLSX.writeFile(wb, "crm_leads_sample_template.xlsx");
+    }
   }
 
   return (
@@ -587,29 +645,40 @@ export default function ImportLeadsClient({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-200/80 pb-5">
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-xl sm:text-2xl font-black text-zinc-900 tracking-tight">Excel Lead Ingestion &amp; Assignment</h1>
+            <h1 className="text-xl sm:text-2xl font-black text-zinc-900 tracking-tight">Excel &amp; CSV Lead Ingestion</h1>
             <span className="rounded-full bg-rose-50 text-rose-700 text-[11px] font-bold px-2.5 py-0.5 border border-rose-200">
-              .xls / .xlsx
+              .csv / .xls / .xlsx
             </span>
           </div>
           <p className="mt-1 text-xs text-zinc-500 font-medium">
-            Upload spreadsheets, extract details (Name, WhatsApp, Platform), and assign them to any user&apos;s Initial CRM stage.
+            Upload .csv or Excel spreadsheets with automatic duplicate detection. Extracted leads can be assigned directly to any user&apos;s Initial CRM stage.
           </p>
         </div>
 
         <div className="flex items-center gap-2.5 self-start sm:self-auto">
-          <button
-            onClick={downloadSampleTemplate}
-            className="rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-xs font-bold text-zinc-700 shadow-2xs hover:bg-zinc-50 hover:text-zinc-900 transition-all cursor-pointer whitespace-nowrap"
-          >
-            Sample Template
-          </button>
+          <div className="flex items-center rounded-xl border border-zinc-200 bg-white p-1 shadow-2xs">
+            <button
+              onClick={() => downloadSampleTemplate("xlsx")}
+              className="px-2.5 py-1 text-xs font-bold text-zinc-700 hover:text-zinc-900 hover:bg-zinc-50 rounded-lg transition whitespace-nowrap cursor-pointer"
+              title="Download sample Excel (.xlsx) template"
+            >
+              Sample .xlsx
+            </button>
+            <span className="text-zinc-300">|</span>
+            <button
+              onClick={() => downloadSampleTemplate("csv")}
+              className="px-2.5 py-1 text-xs font-bold text-zinc-700 hover:text-zinc-900 hover:bg-zinc-50 rounded-lg transition whitespace-nowrap cursor-pointer"
+              title="Download sample CSV (.csv) template"
+            >
+              Sample .csv
+            </button>
+          </div>
 
           <button
             onClick={() => fileInputRef.current?.click()}
             className="rounded-xl bg-gradient-to-r from-rose-600 to-rose-500 px-4 py-2 text-xs font-bold text-white shadow-md shadow-rose-600/20 hover:from-rose-500 hover:to-rose-400 active:scale-95 transition-all cursor-pointer whitespace-nowrap"
           >
-            Upload .xls File
+            Upload File
           </button>
         </div>
       </div>
@@ -649,7 +718,7 @@ export default function ImportLeadsClient({
         </div>
       </div>
 
-      {/* Drag & Drop Upload Zone Card */}
+      {/* Drag & Drop Upload Zone Card (Supports .csv, .xls, .xlsx) */}
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -672,7 +741,7 @@ export default function ImportLeadsClient({
         <input
           ref={fileInputRef}
           type="file"
-          accept=".xls,.xlsx,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           className="hidden"
           onChange={handleFileInput}
         />
@@ -682,12 +751,13 @@ export default function ImportLeadsClient({
         </div>
 
         <h3 className="mt-3 text-xs sm:text-sm font-bold text-zinc-900">
-          {isUploading ? "Reading and analyzing spreadsheet..." : "Click or drag and drop .xls or .xlsx spreadsheet"}
+          {isUploading ? "Reading and analyzing file..." : "Click or drag and drop .csv, .xls, or .xlsx file"}
         </h3>
         <p className="mt-1 text-[11px] sm:text-xs text-zinc-400">
-          Supports columns: <span className="font-semibold text-zinc-700">platform</span> (fb / ig),{" "}
+          Extracts <span className="font-semibold text-zinc-700">platform</span> (fb / ig),{" "}
           <span className="font-semibold text-zinc-700">full_name</span>, and{" "}
-          <span className="font-semibold text-zinc-700">whatsapp_number</span>
+          <span className="font-semibold text-zinc-700">whatsapp_number</span> &middot;{" "}
+          <span className="text-emerald-700 font-semibold">Automatic duplicate detection</span>
         </p>
       </div>
 
@@ -829,7 +899,7 @@ export default function ImportLeadsClient({
                   <td colSpan={7} className="py-16 text-center text-zinc-400">
                     <p className="text-sm font-semibold text-zinc-700">No imported leads found</p>
                     <p className="text-xs text-zinc-400 mt-1">
-                      Upload a .xls file or change your search filter to see records.
+                      Upload a .csv or .xls file to see records.
                     </p>
                   </td>
                 </tr>
@@ -1003,7 +1073,7 @@ export default function ImportLeadsClient({
         </div>
       </div>
 
-      {/* Preview & Confirmation Modal before adding to DB */}
+      {/* Preview & Deduplication Modal */}
       {showPreviewModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
@@ -1022,12 +1092,24 @@ export default function ImportLeadsClient({
                   <strong>{parsedPreview.length}</strong> records parsed
                 </p>
               </div>
-              <button
-                onClick={() => setShowPreviewModal(false)}
-                className="text-xs font-bold text-zinc-400 hover:text-zinc-700 px-2 py-1"
-              >
-                Close
-              </button>
+
+              {/* Deduplication Summary Pills */}
+              <div className="flex items-center gap-2">
+                <span className="rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-1 text-xs font-bold">
+                  {previewAnalysis.newCount} New
+                </span>
+                {previewAnalysis.dupCount > 0 && (
+                  <span className="rounded-md bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-1 text-xs font-bold">
+                    {previewAnalysis.dupCount} Duplicates Skipped
+                  </span>
+                )}
+                <button
+                  onClick={() => setShowPreviewModal(false)}
+                  className="text-xs font-bold text-zinc-400 hover:text-zinc-700 px-2 py-1 cursor-pointer ml-2"
+                >
+                  Close
+                </button>
+              </div>
             </div>
 
             {/* Modal Content / Preview Table */}
@@ -1040,11 +1122,15 @@ export default function ImportLeadsClient({
                       <th className="px-4 py-2.5">Platform</th>
                       <th className="px-4 py-2.5">Customer Name</th>
                       <th className="px-4 py-2.5">WhatsApp / Phone</th>
+                      <th className="px-4 py-2.5">Duplicate Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-100">
-                    {parsedPreview.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-zinc-50">
+                    {previewAnalysis.analyzed.map((item, idx) => (
+                      <tr
+                        key={idx}
+                        className={item.isDuplicate ? "bg-amber-50/40 text-zinc-400" : "hover:bg-zinc-50"}
+                      >
                         <td className="px-4 py-2.5 text-zinc-400 font-mono">{idx + 1}</td>
                         <td className="px-4 py-2.5">
                           <span
@@ -1059,8 +1145,21 @@ export default function ImportLeadsClient({
                             {item.platform === "fb" ? "Facebook (fb)" : item.platform === "ig" ? "Instagram (ig)" : item.platform}
                           </span>
                         </td>
-                        <td className="px-4 py-2.5 font-bold text-zinc-900">{item.name}</td>
+                        <td className={`px-4 py-2.5 font-bold ${item.isDuplicate ? "text-zinc-500 line-through" : "text-zinc-900"}`}>
+                          {item.name}
+                        </td>
                         <td className="px-4 py-2.5 font-mono text-zinc-700">{item.rawPhone || item.phone}</td>
+                        <td className="px-4 py-2.5">
+                          {item.isDuplicate ? (
+                            <span className="inline-block rounded-md bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 text-[10px] font-bold">
+                              Duplicate ({item.reason})
+                            </span>
+                          ) : (
+                            <span className="inline-block rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 text-[10px] font-bold">
+                              New Lead
+                            </span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1081,15 +1180,15 @@ export default function ImportLeadsClient({
                     <option value="">Keep in Pending Queue (Assign manually later)</option>
                     {users.map((u) => (
                       <option key={u.id} value={u.id}>
-                        Assign all {parsedPreview.length} leads directly to: {u.name} ({u.company || u.email})
+                        Assign all {previewAnalysis.newCount} new leads directly to: {u.name} ({u.company || u.email})
                       </option>
                     ))}
                   </select>
                 </div>
                 <p className="text-[11px] text-zinc-500">
                   {uploadTargetUserId
-                    ? "Leads will be created directly in this user's CRM Initial stage upon confirmation."
-                    : "Leads will be added to the Pending Queue so you can assign or distribute them individually."}
+                    ? "New unique leads will be created directly in this user's CRM Initial stage upon confirmation."
+                    : "New unique leads will be added to the Pending Queue so you can assign or distribute them individually."}
                 </p>
               </div>
 
@@ -1106,10 +1205,14 @@ export default function ImportLeadsClient({
                 <button
                   type="button"
                   onClick={() => confirmUploadLeads(uploadTargetUserId)}
-                  disabled={isUploading}
+                  disabled={isUploading || previewAnalysis.newCount === 0}
                   className="rounded-xl bg-gradient-to-r from-rose-600 to-rose-500 hover:from-rose-500 hover:to-rose-400 px-5 py-2 text-xs font-bold text-white shadow-md shadow-rose-600/20 disabled:opacity-50 transition cursor-pointer"
                 >
-                  {isUploading ? "Importing Leads..." : `Confirm & Import ${parsedPreview.length} Leads`}
+                  {isUploading
+                    ? "Importing Leads..."
+                    : previewAnalysis.newCount === 0
+                    ? "All Leads Already Exist (0 New)"
+                    : `Confirm & Import ${previewAnalysis.newCount} New Leads`}
                 </button>
               </div>
             </div>

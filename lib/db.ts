@@ -842,18 +842,82 @@ export async function getImportedLeads(filter?: { status?: string }): Promise<Im
 
 export async function createImportedLeads(
   leads: Array<Omit<ImportedLead, "id" | "uploadedAt" | "status">>
-): Promise<ImportedLead[]> {
+): Promise<{ created: ImportedLead[]; skippedCount: number; duplicates: string[] }> {
   await dbConnect();
   const now = new Date().toISOString();
-  const docsToInsert = leads.map((l) => ({
-    ...l,
-    id: crypto.randomUUID(),
-    status: "pending",
-    uploadedAt: now,
-  }));
-  if (docsToInsert.length === 0) return [];
+
+  // 1. Gather all phone numbers and names to check against database
+  const phonesToCheck = leads
+    .map((l) => String(l.phone || "").replace(/\D/g, "").slice(-10))
+    .filter((p) => p.length >= 7);
+
+  // 2. Fetch existing phones from active CRM leads
+  const existingCrmLeads = await LeadModel.find({
+    deletedAt: null,
+    phone: { $exists: true, $ne: "" },
+  }).select("phone name");
+
+  // 3. Fetch existing phones from Imported leads
+  const existingImported = await ImportedLeadModel.find({
+    phone: { $exists: true, $ne: "" },
+  }).select("phone name");
+
+  const existingPhoneSet = new Set<string>();
+  for (const l of existingCrmLeads) {
+    if (l.phone) {
+      const clean = String(l.phone).replace(/\D/g, "").slice(-10);
+      if (clean) existingPhoneSet.add(clean);
+    }
+  }
+  for (const l of existingImported) {
+    if (l.phone) {
+      const clean = String(l.phone).replace(/\D/g, "").slice(-10);
+      if (clean) existingPhoneSet.add(clean);
+    }
+  }
+
+  // 4. Deduplicate within the incoming batch and against DB
+  const seenInBatch = new Set<string>();
+  const docsToInsert: any[] = [];
+  const duplicates: string[] = [];
+
+  for (const lead of leads) {
+    const cleanPhone = String(lead.phone || "").replace(/\D/g, "").slice(-10);
+    const key = cleanPhone || String(lead.name || "").toLowerCase().trim();
+
+    // Check if exists in DB by phone
+    if (cleanPhone && existingPhoneSet.has(cleanPhone)) {
+      duplicates.push(`${lead.name} (${lead.rawPhone || lead.phone || "No phone"})`);
+      continue;
+    }
+
+    // Check if duplicate within the same batch
+    if (seenInBatch.has(key)) {
+      duplicates.push(`${lead.name} (${lead.rawPhone || lead.phone || "Duplicate in file"})`);
+      continue;
+    }
+
+    seenInBatch.add(key);
+    if (cleanPhone) existingPhoneSet.add(cleanPhone);
+
+    docsToInsert.push({
+      ...lead,
+      id: crypto.randomUUID(),
+      status: "pending",
+      uploadedAt: now,
+    });
+  }
+
+  if (docsToInsert.length === 0) {
+    return { created: [], skippedCount: duplicates.length, duplicates };
+  }
+
   const created = await ImportedLeadModel.insertMany(docsToInsert);
-  return created.map((d) => toPlain<ImportedLead>(d));
+  return {
+    created: created.map((d) => toPlain<ImportedLead>(d)),
+    skippedCount: duplicates.length,
+    duplicates,
+  };
 }
 
 export async function assignImportedLead(

@@ -200,8 +200,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const created = await createImportedLeads(leadsToInsert);
-  return NextResponse.json({ success: true, count: created.length, leads: created });
+  const result = await createImportedLeads(leadsToInsert);
+  return NextResponse.json({
+    success: true,
+    count: result.created.length,
+    skippedCount: result.skippedCount,
+    duplicates: result.duplicates,
+    leads: result.created,
+  });
 }
 
 export async function DELETE(request: NextRequest) {

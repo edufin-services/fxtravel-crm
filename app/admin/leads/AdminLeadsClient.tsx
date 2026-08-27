@@ -40,6 +40,25 @@ function cardBg(color?: string) {
   return `${c.bg} ${c.border} ${c.accent}`;
 }
 
+function tableRowBg(color?: string) {
+  switch (color) {
+    case "sky":
+      return "bg-sky-50/70 hover:bg-sky-100/80 border-l-4 border-l-sky-500";
+    case "emerald":
+      return "bg-emerald-50/70 hover:bg-emerald-100/80 border-l-4 border-l-emerald-500";
+    case "amber":
+      return "bg-amber-50/70 hover:bg-amber-100/80 border-l-4 border-l-amber-500";
+    case "violet":
+      return "bg-violet-50/70 hover:bg-violet-100/80 border-l-4 border-l-violet-500";
+    case "rose":
+      return "bg-rose-50/70 hover:bg-rose-100/80 border-l-4 border-l-rose-500";
+    case "orange":
+      return "bg-orange-50/70 hover:bg-orange-100/80 border-l-4 border-l-orange-500";
+    default:
+      return "bg-white hover:bg-zinc-50/80 border-l-4 border-l-transparent";
+  }
+}
+
 const channelPill: Record<string, string> = {
   WhatsApp: "bg-emerald-50 text-emerald-700 border-emerald-200",
   Instagram: "bg-pink-50 text-pink-700 border-pink-200",
@@ -60,6 +79,23 @@ export default function AdminLeadsClient({ initialLeads, agents }: { initialLead
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = useState<"kanban" | "table">("kanban");
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("admin_leads_view_mode");
+      if (saved === "kanban" || saved === "table") {
+        setViewMode(saved);
+      }
+    } catch {}
+  }, []);
+
+  function handleSetViewMode(mode: "kanban" | "table") {
+    setViewMode(mode);
+    try {
+      localStorage.setItem("admin_leads_view_mode", mode);
+    } catch {}
+  }
+
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<Stage | null>(null);
@@ -144,7 +180,7 @@ export default function AdminLeadsClient({ initialLeads, agents }: { initialLead
           {/* View mode toggle: Icon-only buttons */}
           <div className="flex items-center rounded-xl border border-zinc-200 bg-zinc-100 p-1">
             <button
-              onClick={() => setViewMode("kanban")}
+              onClick={() => handleSetViewMode("kanban")}
               className={`flex items-center justify-center rounded-lg p-2 transition-colors ${
                 viewMode === "kanban" ? "bg-white text-zinc-900 shadow-xs" : "text-zinc-500 hover:text-zinc-800"
               }`}
@@ -153,7 +189,7 @@ export default function AdminLeadsClient({ initialLeads, agents }: { initialLead
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>
             </button>
             <button
-              onClick={() => setViewMode("table")}
+              onClick={() => handleSetViewMode("table")}
               className={`flex items-center justify-center rounded-lg p-2 transition-colors ${
                 viewMode === "table" ? "bg-white text-zinc-900 shadow-xs" : "text-zinc-500 hover:text-zinc-800"
               }`}
@@ -358,7 +394,7 @@ export default function AdminLeadsClient({ initialLeads, agents }: { initialLead
                   </tr>
                 ) : (
                   filteredLeads.map((lead) => (
-                    <tr key={lead.id} className="hover:bg-zinc-50/60 transition-colors cursor-pointer" onClick={() => setEditingLead(lead)}>
+                    <tr key={lead.id} className={`transition-colors cursor-pointer ${tableRowBg(lead.color)}`} onClick={() => setEditingLead(lead)}>
                       <td className="px-5 py-3.5">
                         <p className="font-semibold text-zinc-900 leading-tight">{lead.name}</p>
                         {lead.phone && <p className="text-xs text-zinc-400 mt-0.5">{lead.phone}</p>}

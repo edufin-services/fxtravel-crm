@@ -33,6 +33,34 @@ function cardBg(color?: string) {
   return `${c.bg} ${c.border} ${c.accent}`;
 }
 
+const COLOR_AVATAR_GRADIENTS: Record<string, string> = {
+  sky: "from-sky-400 to-sky-600",
+  emerald: "from-emerald-400 to-emerald-600",
+  amber: "from-amber-400 to-amber-600",
+  violet: "from-violet-400 to-violet-600",
+  rose: "from-rose-400 to-rose-600",
+  orange: "from-orange-400 to-orange-600",
+};
+
+function tableRowBg(color?: string) {
+  switch (color) {
+    case "sky":
+      return "bg-sky-50/70 hover:bg-sky-100/80 border-l-4 border-l-sky-500";
+    case "emerald":
+      return "bg-emerald-50/70 hover:bg-emerald-100/80 border-l-4 border-l-emerald-500";
+    case "amber":
+      return "bg-amber-50/70 hover:bg-amber-100/80 border-l-4 border-l-amber-500";
+    case "violet":
+      return "bg-violet-50/70 hover:bg-violet-100/80 border-l-4 border-l-violet-500";
+    case "rose":
+      return "bg-rose-50/70 hover:bg-rose-100/80 border-l-4 border-l-rose-500";
+    case "orange":
+      return "bg-orange-50/70 hover:bg-orange-100/80 border-l-4 border-l-orange-500";
+    default:
+      return "bg-white hover:bg-zinc-50/80 border-l-4 border-l-transparent";
+  }
+}
+
 // ── Channel pills ───────────────────────────────────────────────────────────────
 const channelPill: Record<string, string> = {
   WhatsApp: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -58,6 +86,20 @@ const GRADIENTS: Record<string, string> = {
 const grad = (name: string) => GRADIENTS[name[0]?.toUpperCase() ?? "A"] ?? "from-zinc-400 to-zinc-600";
 const initials = (name: string) => name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
 
+function fmt(v: number) {
+  if (v >= 1_00_00_000) return `₹${(v / 1_00_00_000).toFixed(1)}Cr`;
+  if (v >= 1_00_000) return `₹${(v / 1_00_000).toFixed(1)}L`;
+  if (v >= 1000) return `₹${(v / 1000).toFixed(1)}K`;
+  return `₹${v}`;
+}
+
+const STAGE_COLORS: Record<string, string> = {
+  Initial: "bg-blue-50 text-blue-700 border-blue-200/80",
+  Connected: "bg-amber-50 text-amber-700 border-amber-200/80",
+  Confirmed: "bg-emerald-50 text-emerald-700 border-emerald-200/80",
+  Closed: "bg-red-50 text-red-700 border-red-200/80",
+};
+
 // ── Skeleton card ──────────────────────────────────────────────────────────────
 function SkeletonCard() {
   return (
@@ -82,6 +124,24 @@ function LeadsPageContent() {
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<"kanban" | "table">("kanban");
+  const [stageFilter, setStageFilter] = useState<string>("All Stages");
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("leads_view_mode");
+      if (saved === "kanban" || saved === "table") {
+        setViewMode(saved);
+      }
+    } catch {}
+  }, []);
+
+  function handleSetViewMode(mode: "kanban" | "table") {
+    setViewMode(mode);
+    try {
+      localStorage.setItem("leads_view_mode", mode);
+    } catch {}
+  }
   const [modalStage, setModalStage] = useState<Stage | null>(null);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -199,6 +259,26 @@ function LeadsPageContent() {
     setPendingStage({ id, from: lead.stage, to: toStage });
   }
 
+  async function handleDirectStageChange(id: string, newStage: Stage) {
+    const prevLead = leads.find((l) => l.id === id);
+    if (!prevLead || prevLead.stage === newStage) return;
+
+    // Optimistic update
+    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, stage: newStage } : l)));
+    setEditingLead((prev) => (prev?.id === id ? { ...prev, stage: newStage } : prev));
+
+    const res = await fetch(`/api/leads/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stage: newStage }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, stage: prevLead.stage } : l)));
+      setErrorMsg(data.error ?? "Failed to update stage.");
+    }
+  }
+
   async function confirmStageChange() {
     if (!pendingStage) return;
     setConfirmLoading(true);
@@ -214,7 +294,7 @@ function LeadsPageContent() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this deal?")) return;
+    if (!confirm("Move this deal to trash? You can restore it later from the Trash tab.")) return;
     setLeads((p) => p.filter((l) => l.id !== id));
     setEditingLead(null);
     await fetch(`/api/leads/${id}`, { method: "DELETE" });
@@ -253,17 +333,19 @@ function LeadsPageContent() {
 
   const filteredLeads = useMemo(() => {
     return leads.filter((l) => {
+      // 1. Stage Filter
+      const matchStage = stageFilter === "All Stages" || l.stage === stageFilter;
 
-      // 1. Channel Filter
+      // 2. Channel Filter
       const matchChannel = channelFilter === "All" || l.channel === channelFilter;
 
-      // 2. Service Filter
+      // 3. Service Filter
       const matchService =
         serviceFilter === "All Services" ||
         (l.services && l.services.includes(serviceFilter)) ||
         l.serviceType === serviceFilter;
 
-      // 3. Date Range Filter
+      // 4. Date Range Filter
       let matchDate = true;
       if (datePreset !== "All Dates") {
         const leadTime = new Date(l.createdAt).getTime();
@@ -293,18 +375,12 @@ function LeadsPageContent() {
         }
       }
 
-      return matchChannel && matchService && matchDate;
+      return matchStage && matchChannel && matchService && matchDate;
     });
-  }, [leads, channelFilter, serviceFilter, datePreset, startDate, endDate]);
+  }, [leads, stageFilter, channelFilter, serviceFilter, datePreset, startDate, endDate]);
 
   const confirmedCount = filteredLeads.filter((l) => l.stage === "Confirmed").length;
   const total = filteredLeads.length;
-
-  // Pipeline distribution for mini progress bar
-  const stageCounts = STAGES.map((s) => ({
-    stage: s,
-    count: filteredLeads.filter((l) => l.stage === s).length,
-  }));
 
   return (
     <div className="flex h-full flex-col gap-0">
@@ -320,13 +396,40 @@ function LeadsPageContent() {
           </div>
           <p className="mt-1 text-xs text-zinc-500 font-medium">Manage and convert enquiry leads through your 4-stage pipeline</p>
         </div>
-        <button
-          onClick={() => setModalStage(STAGES[0])}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-600/20 hover:from-emerald-500 hover:to-emerald-400 active:scale-95 transition-all"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14" strokeLinecap="round"/></svg>
-          New Lead
-        </button>
+
+        <div className="flex items-center gap-3">
+          {/* View mode toggle: Icon-only buttons matching screenshot */}
+          <div className="flex items-center rounded-xl border border-zinc-200 bg-zinc-100 p-1 shadow-2xs">
+            <button
+              onClick={() => handleSetViewMode("kanban")}
+              className={`flex items-center justify-center rounded-lg p-2 transition-all ${
+                viewMode === "kanban" ? "bg-white text-zinc-900 shadow-xs ring-1 ring-black/5" : "text-zinc-500 hover:text-zinc-800"
+              }`}
+              title="Kanban View"
+              aria-label="Kanban View"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>
+            </button>
+            <button
+              onClick={() => handleSetViewMode("table")}
+              className={`flex items-center justify-center rounded-lg p-2 transition-all ${
+                viewMode === "table" ? "bg-white text-zinc-900 shadow-xs ring-1 ring-black/5" : "text-zinc-500 hover:text-zinc-800"
+              }`}
+              title="List View"
+              aria-label="List View"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+          </div>
+
+          <button
+            onClick={() => setModalStage(STAGES[0])}
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-600/20 hover:from-emerald-500 hover:to-emerald-400 active:scale-95 transition-all"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14" strokeLinecap="round"/></svg>
+            New Lead
+          </button>
+        </div>
       </div>
 
       {/* ── Stats + filters row ───────────────────────────────────────────────── */}
@@ -356,6 +459,23 @@ function LeadsPageContent() {
 
         {/* Filters pushed to right */}
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Stage Dropdown Filter */}
+          <div className="relative">
+            <select
+              value={stageFilter}
+              onChange={(e) => setStageFilter(e.target.value)}
+              className="appearance-none rounded-xl border border-zinc-200 bg-white pl-3.5 pr-8 py-2 text-xs font-bold text-zinc-700 shadow-2xs hover:border-zinc-300 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 transition-all cursor-pointer"
+            >
+              <option value="All Stages">All Stages</option>
+              {STAGES.map((stg) => (
+                <option key={stg} value={stg}>{stg}</option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+          </div>
+
           {/* Service Dropdown Filter */}
           <div className="relative">
             <select
@@ -427,173 +547,341 @@ function LeadsPageContent() {
         </div>
       </div>
 
-      {/* ── Kanban board ─────────────────────────────────────────────────────── */}
-      <div className="flex gap-4 overflow-x-auto pb-6 flex-1 items-start">
-        {STAGES.map((stage) => {
-          const meta = stageMeta[stage] ?? stageMeta["Initial"];
-          const deals = filteredLeads
-            .filter((l) => l.stage === stage)
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      {/* ── MAIN CONTENT (KANBAN OR TABLE VIEW) ─────────────────────────────────── */}
+      {viewMode === "kanban" ? (
+        /* ── Kanban board ─────────────────────────────────────────────────────── */
+        <div className="flex gap-4 overflow-x-auto pb-6 flex-1 items-start">
+          {STAGES.map((stage) => {
+            const meta = stageMeta[stage] ?? stageMeta["Initial"];
+            const deals = filteredLeads
+              .filter((l) => l.stage === stage)
+              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-          return (
-            <div
-              key={stage}
-              onDragOver={(e) => { e.preventDefault(); setDragOverStage(stage); }}
-              onDragLeave={() => setDragOverStage((p) => (p === stage ? null : p))}
-              onDrop={(e) => {
-                e.preventDefault(); setDragOverStage(null);
-                const id = e.dataTransfer.getData("text/plain") || draggingId;
-                if (id) handleStageChange(id, stage);
-                setDraggingId(null);
-              }}
-              className={`flex flex-1 min-w-[300px] max-w-[360px] flex-none flex-col rounded-2xl bg-zinc-100/70 p-3 transition-all duration-200 border border-zinc-200/80 ${dragOverStage === stage ? "ring-2 ring-emerald-500 bg-emerald-50/40 border-emerald-300 scale-[1.01]" : ""}`}
-            >
-              {/* Column header */}
-              <div className="mb-3 flex items-center justify-between px-1.5 pt-1 pb-0.5 border-b border-zinc-200/60 pb-2.5">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className={`h-2.5 w-2.5 flex-none rounded-full ${meta.dot} shadow-xs`} />
-                  <h2 className="truncate text-xs font-black text-zinc-800 uppercase tracking-wider">{stage}</h2>
-                </div>
-                <span className={`ml-2 flex-none rounded-full px-2.5 py-0.5 text-xs font-extrabold min-w-[22px] text-center shadow-xs ${deals.length > 0 ? meta.badge : "bg-zinc-200/80 text-zinc-600"}`}>
-                  {loading ? "·" : deals.length}
-                </span>
-              </div>
-
-              {/* Cards list */}
-              <div className="flex flex-1 flex-col gap-3">
-                {loading ? (
-                  <>
-                    <SkeletonCard />
-                    <SkeletonCard />
-                  </>
-                ) : deals.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-10 text-center rounded-2xl border border-dashed border-zinc-300/80 bg-white/50">
-                    <div className={`mb-2 h-7 w-7 rounded-full ${meta.dot} opacity-20 flex items-center justify-center`} />
-                    <p className="text-xs text-zinc-400 font-semibold">No enquiries in {stage}</p>
+            return (
+              <div
+                key={stage}
+                onDragOver={(e) => { e.preventDefault(); setDragOverStage(stage); }}
+                onDragLeave={() => setDragOverStage((p) => (p === stage ? null : p))}
+                onDrop={(e) => {
+                  e.preventDefault(); setDragOverStage(null);
+                  const id = e.dataTransfer.getData("text/plain") || draggingId;
+                  if (id) handleStageChange(id, stage);
+                  setDraggingId(null);
+                }}
+                className={`flex flex-1 min-w-[300px] max-w-[360px] flex-none flex-col rounded-2xl bg-zinc-100/70 p-3 transition-all duration-200 border border-zinc-200/80 ${dragOverStage === stage ? "ring-2 ring-emerald-500 bg-emerald-50/40 border-emerald-300 scale-[1.01]" : ""}`}
+              >
+                {/* Column header */}
+                <div className="mb-3 flex items-center justify-between px-1.5 pt-1 pb-0.5 border-b border-zinc-200/60 pb-2.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`h-2.5 w-2.5 flex-none rounded-full ${meta.dot} shadow-xs`} />
+                    <h2 className="truncate text-xs font-black text-zinc-800 uppercase tracking-wider">{stage}</h2>
                   </div>
-                ) : (
-                  deals.map((deal) => {
-                    const nextStage = STAGES[STAGES.indexOf(deal.stage) + 1] as Stage | undefined;
-                    const nextMeta = nextStage ? stageMeta[nextStage] : null;
+                  <span className={`ml-2 flex-none rounded-full px-2.5 py-0.5 text-xs font-extrabold min-w-[22px] text-center shadow-xs ${deals.length > 0 ? meta.badge : "bg-zinc-200/80 text-zinc-600"}`}>
+                    {loading ? "·" : deals.length}
+                  </span>
+                </div>
 
-                    return (
-                      <div
-                        key={deal.id}
-                        draggable
-                        onClick={() => setEditingLead(deal)}
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData("text/plain", deal.id);
-                          e.dataTransfer.effectAllowed = "move";
-                          setDraggingId(deal.id);
-                        }}
-                        onDragEnd={() => { setDraggingId(null); setDragOverStage(null); }}
-                        className={`group relative cursor-pointer rounded-2xl border border-zinc-200/90 p-4 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-zinc-300 active:cursor-grabbing select-none ${cardBg(deal.color)} ${draggingId === deal.id ? "opacity-30 scale-95 rotate-1" : ""}`}
-                      >
-                        {/* Header: Name + Delete hover button */}
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-xl font-black text-zinc-900 leading-tight group-hover:text-emerald-800 transition-colors">
-                              {deal.name}
-                            </p>
-                          </div>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleDelete(deal.id); }}
-                            className="opacity-0 group-hover:opacity-100 rounded-lg p-1 text-zinc-400 hover:text-red-500 hover:bg-red-50 transition-all shrink-0"
-                            title="Delete Lead"
-                          >
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
-                          </button>
-                        </div>
+                {/* Cards list */}
+                <div className="flex flex-1 flex-col gap-3">
+                  {loading ? (
+                    <>
+                      <SkeletonCard />
+                      <SkeletonCard />
+                    </>
+                  ) : deals.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-10 text-center rounded-2xl border border-dashed border-zinc-300/80 bg-white/50">
+                      <div className={`mb-2 h-7 w-7 rounded-full ${meta.dot} opacity-20 flex items-center justify-center`} />
+                      <p className="text-xs text-zinc-400 font-semibold">No enquiries in {stage}</p>
+                    </div>
+                  ) : (
+                    deals.map((deal) => {
+                      const nextStage = STAGES[STAGES.indexOf(deal.stage) + 1] as Stage | undefined;
+                      const nextMeta = nextStage ? stageMeta[nextStage] : null;
 
-                        {/* Phone */}
-                        {deal.phone && (
-                          <div className="mt-2.5 flex items-center gap-1.5 text-xs text-zinc-600 font-semibold">
-                            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-zinc-100 text-zinc-500 shrink-0">
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1.2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.9a16 16 0 0 0 6.08 6.08l.96-.96a2 2 0 0 1 2.11-.45c.9.36 1.84.58 2.81.7A2 2 0 0 1 22 16.92z" strokeLinecap="round"/></svg>
-                            </span>
-                            <span>{deal.phone}</span>
-                          </div>
-                        )}
-
-                        {/* Services Badges */}
-                        {((deal.services && deal.services.length > 0) || deal.serviceType) && (
-                          <div className="mt-2.5 flex flex-wrap gap-1.5">
-                            {(deal.services && deal.services.length > 0 ? deal.services : [deal.serviceType!]).map((svc) => (
-                              <span key={svc} className="rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-bold text-emerald-800 shadow-2xs">
-                                {svc}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Time + Note Popup Trigger Button */}
-                        <div className="mt-3 flex items-center justify-between gap-2 pt-1">
-                          <span className="text-[11px] text-zinc-400 font-medium">{formatRelativeTime(deal.createdAt)}</span>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setViewingNoteLead(deal); }}
-                            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
-                              deal.notes
-                                ? "bg-amber-100/90 text-amber-900 border border-amber-300/80 hover:bg-amber-200 shadow-2xs"
-                                : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 border border-zinc-200/60"
-                            }`}
-                          >
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5"/><path d="M17.5 2.5a2.121 2.121 0 0 1 3 3L12 14l-4 1 1-4 7.5-7.5z"/></svg>
-                            {deal.notes ? "View Note" : "+ Add Note"}
-                          </button>
-                        </div>
-
-                        {/* Footer: Set Reminder + Stage transition button */}
-                        <div className="mt-3.5 flex items-center justify-between border-t border-zinc-100 pt-3 gap-2">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setReminderLead(deal); }}
-                            className={`flex h-7 w-7 items-center justify-center rounded-xl border transition-all shadow-2xs shrink-0 ${
-                              deal.reminderAt
-                                ? "bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 shadow-emerald-500/20"
-                                : "bg-zinc-100 text-zinc-400 border-zinc-200/80 hover:bg-zinc-200 hover:text-zinc-700"
-                            }`}
-                            title={deal.reminderAt ? `Reminder active: ${new Date(deal.reminderAt).toLocaleString()}` : "Set Reminder Alert"}
-                          >
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                          </button>
-
-                          {nextStage ? (
+                      return (
+                        <div
+                          key={deal.id}
+                          draggable
+                          onClick={() => setEditingLead(deal)}
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData("text/plain", deal.id);
+                            e.dataTransfer.effectAllowed = "move";
+                            setDraggingId(deal.id);
+                          }}
+                          onDragEnd={() => { setDraggingId(null); setDragOverStage(null); }}
+                          className={`group relative cursor-pointer rounded-2xl border border-zinc-200/90 p-4 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-zinc-300 active:cursor-grabbing select-none ${cardBg(deal.color)} ${draggingId === deal.id ? "opacity-30 scale-95 rotate-1" : ""}`}
+                        >
+                          {/* Header: Name + Delete hover button */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-xl font-black text-zinc-900 leading-tight group-hover:text-emerald-800 transition-colors">
+                                {deal.name}
+                              </p>
+                            </div>
                             <button
-                              onClick={(e) => { e.stopPropagation(); handleStageChange(deal.id, nextStage); }}
-                              className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-extrabold transition-all shadow-xs hover:shadow-md ${
-                                nextMeta ? `${nextMeta.badge} hover:opacity-95` : "bg-zinc-900 text-white"
-                              }`}
-                              aria-label={`Move to ${nextStage}`}
+                              onClick={(e) => { e.stopPropagation(); handleDelete(deal.id); }}
+                              className="opacity-0 group-hover:opacity-100 rounded-lg p-1 text-zinc-400 hover:text-red-500 hover:bg-red-50 transition-all shrink-0"
+                              title="Delete Lead"
                             >
-                              Move to {nextStage}
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
                             </button>
-                          ) : (
-                            <span className="flex items-center gap-1.5 rounded-xl bg-red-50 border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700">
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                              Closed
-                            </span>
+                          </div>
+
+                          {/* Phone */}
+                          {deal.phone && (
+                            <div className="mt-2.5 flex items-center gap-1.5 text-xs text-zinc-600 font-semibold">
+                              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-zinc-100 text-zinc-500 shrink-0">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1.2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.9a16 16 0 0 0 6.08 6.08l.96-.96a2 2 0 0 1 2.11-.45c.9.36 1.84.58 2.81.7A2 2 0 0 1 22 16.92z" strokeLinecap="round"/></svg>
+                              </span>
+                              <span>{deal.phone}</span>
+                            </div>
                           )}
+
+                          {/* Services Badges */}
+                          {((deal.services && deal.services.length > 0) || deal.serviceType) && (
+                            <div className="mt-2.5 flex flex-wrap gap-1.5">
+                              {(deal.services && deal.services.length > 0 ? deal.services : [deal.serviceType!]).map((svc) => (
+                                <span key={svc} className="rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-bold text-emerald-800 shadow-2xs">
+                                  {svc}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Time + Note Popup Trigger Button */}
+                          <div className="mt-3 flex items-center justify-between gap-2 pt-1">
+                            <span className="text-[11px] text-zinc-400 font-medium">{formatRelativeTime(deal.createdAt)}</span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setViewingNoteLead(deal); }}
+                              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
+                                deal.notes
+                                  ? "bg-amber-100/90 text-amber-900 border border-amber-300/80 hover:bg-amber-200 shadow-2xs"
+                                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 border border-zinc-200/60"
+                              }`}
+                            >
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 2 2h11a2 2 0 0 0 2-2v-5"/><path d="M17.5 2.5a2.121 2.121 0 0 1 3 3L12 14l-4 1 1-4 7.5-7.5z"/></svg>
+                              {deal.notes ? "View Note" : "+ Add Note"}
+                            </button>
+                          </div>
+
+                          {/* Footer: Set Reminder + Stage transition button */}
+                          <div className="mt-3.5 flex items-center justify-between border-t border-zinc-100 pt-3 gap-2">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setReminderLead(deal); }}
+                              className={`flex h-7 w-7 items-center justify-center rounded-xl border transition-all shadow-2xs shrink-0 ${
+                                deal.reminderAt
+                                  ? "bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 shadow-emerald-500/20"
+                                  : "bg-zinc-100 text-zinc-400 border-zinc-200/80 hover:bg-zinc-200 hover:text-zinc-700"
+                              }`}
+                              title={deal.reminderAt ? `Reminder active: ${new Date(deal.reminderAt).toLocaleString()}` : "Set Reminder Alert"}
+                            >
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                            </button>
+
+                            {nextStage ? (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleStageChange(deal.id, nextStage); }}
+                                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-extrabold transition-all shadow-xs hover:shadow-md ${
+                                  nextMeta ? `${nextMeta.badge} hover:opacity-95` : "bg-zinc-900 text-white"
+                                }`}
+                                aria-label={`Move to ${nextStage}`}
+                              >
+                                Move to {nextStage}
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                              </button>
+                            ) : (
+                              <span className="flex items-center gap-1.5 rounded-xl bg-red-50 border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                Closed
+                              </span>
+                            )}
+                          </div>
                         </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Add Lead in this column button */}
+                {!loading && (
+                  <button
+                    onClick={() => setModalStage(stage)}
+                    className="mt-3 flex-none flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-zinc-300/80 bg-white/70 py-2.5 text-xs font-bold text-zinc-500 hover:border-emerald-500 hover:bg-emerald-50/60 hover:text-emerald-700 transition-all shadow-2xs"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 5v14M5 12h14" strokeLinecap="round"/></svg>
+                    Add Lead
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* ── Table / List view ─────────────────────────────────────────────────── */
+        <div className="rounded-2xl border border-zinc-200 bg-white overflow-hidden shadow-xs">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead>
+                <tr className="border-b border-zinc-100 bg-zinc-50/80 text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                  <th className="px-5 py-3.5">Lead Name</th>
+                  <th className="px-5 py-3.5">Services</th>
+                  <th className="px-5 py-3.5">Stage</th>
+                  <th className="px-5 py-3.5">Channel</th>
+                  <th className="px-5 py-3.5">Notes &amp; Reminder</th>
+                  <th className="px-5 py-3.5">Created</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="px-5 py-16 text-center text-sm text-zinc-400">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+                        <span className="text-xs font-semibold text-zinc-500">Loading enquiries...</span>
                       </div>
+                    </td>
+                  </tr>
+                ) : filteredLeads.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-5 py-16 text-center text-sm text-zinc-400">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <div className="h-10 w-10 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-400">
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35" strokeLinecap="round"/></svg>
+                        </div>
+                        <p className="font-semibold text-zinc-600">No enquiries found</p>
+                        <p className="text-xs text-zinc-400">Try changing your search terms or filters</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredLeads.map((deal) => {
+                    return (
+                      <tr
+                        key={deal.id}
+                        onClick={() => setEditingLead(deal)}
+                        className={`transition-colors cursor-pointer group ${tableRowBg(deal.color)}`}
+                      >
+                        {/* Lead Name with avatar and contact number right below name */}
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-3">
+                            <div className={`h-9 w-9 rounded-full bg-gradient-to-br ${deal.color && COLOR_AVATAR_GRADIENTS[deal.color] ? COLOR_AVATAR_GRADIENTS[deal.color] : grad(deal.name)} flex items-center justify-center text-white text-xs font-black shrink-0 shadow-2xs`}>
+                              {initials(deal.name)}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-extrabold text-zinc-900 leading-tight group-hover:text-emerald-700 transition-colors text-sm">
+                                {deal.name}
+                              </p>
+                              {deal.phone ? (
+                                <p className="text-xs text-zinc-500 font-medium mt-0.5 tracking-tight">
+                                  {deal.phone}
+                                </p>
+                              ) : deal.email ? (
+                                <p className="text-xs text-zinc-400 truncate max-w-[180px] mt-0.5">{deal.email}</p>
+                              ) : null}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Services */}
+                        <td className="px-5 py-3.5">
+                          <div className="flex flex-wrap gap-1 max-w-[220px]">
+                            {((deal.services && deal.services.length > 0) || deal.serviceType) ? (
+                              (deal.services && deal.services.length > 0 ? deal.services : [deal.serviceType!]).map((svc) => (
+                                <span key={svc} className="rounded-md bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 text-[11px] font-bold text-emerald-800 shadow-2xs">
+                                  {svc}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-zinc-300 text-xs">—</span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Stage Dropdown to move to other stages */}
+                        <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
+                          <div className="relative inline-flex items-center">
+                            <select
+                              value={deal.stage}
+                              onChange={(e) => handleDirectStageChange(deal.id, e.target.value as Stage)}
+                              className={`appearance-none rounded-xl pl-3 pr-7 py-1.5 text-xs font-bold transition-all cursor-pointer shadow-2xs border focus:outline-none focus:ring-2 focus:ring-emerald-200 ${
+                                deal.stage === "Initial"
+                                  ? "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100/80"
+                                  : deal.stage === "Connected"
+                                  ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/80"
+                                  : deal.stage === "Confirmed"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100/80"
+                                  : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100/80"
+                              }`}
+                            >
+                              {STAGES.map((s) => (
+                                <option key={s} value={s} className="bg-white text-zinc-900 font-semibold py-1">
+                                  {s}
+                                </option>
+                              ))}
+                            </select>
+                            <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 opacity-60 text-current">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Channel */}
+                        <td className="px-5 py-3.5">
+                          <span className={`inline-flex items-center rounded-lg border px-2.5 py-0.5 text-xs font-bold ${channelPill[deal.channel] ?? "bg-zinc-100 text-zinc-600 border-zinc-200"}`}>
+                            {deal.channel}
+                          </span>
+                        </td>
+
+                        {/* Notes & Reminder indicators */}
+                        <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setViewingNoteLead(deal)}
+                              className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
+                                deal.notes
+                                  ? "bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100"
+                                  : "bg-zinc-50 text-zinc-400 border border-zinc-200/60 hover:text-zinc-700 hover:bg-zinc-100"
+                              }`}
+                              title={deal.notes ?? "Add note"}
+                            >
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 2 2h11a2 2 0 0 0 2-2v-5"/><path d="M17.5 2.5a2.121 2.121 0 0 1 3 3L12 14l-4 1 1-4 7.5-7.5z"/></svg>
+                              {deal.notes ? "Note" : "+ Note"}
+                            </button>
+
+                            <button
+                              onClick={() => setReminderLead(deal)}
+                              className={`flex h-7 w-7 items-center justify-center rounded-lg border transition-all ${
+                                deal.reminderAt
+                                  ? "bg-emerald-500 text-white border-emerald-600 shadow-2xs hover:bg-emerald-600"
+                                  : "bg-zinc-50 text-zinc-400 border-zinc-200/60 hover:text-zinc-700 hover:bg-zinc-100"
+                              }`}
+                              title={deal.reminderAt ? `Reminder: ${new Date(deal.reminderAt).toLocaleString()}` : "Set reminder"}
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                            </button>
+                          </div>
+                        </td>
+
+                        {/* Created Date */}
+                        <td className="px-5 py-3.5 text-xs text-zinc-400 whitespace-nowrap">
+                          {formatRelativeTime(deal.createdAt)}
+                        </td>
+                      </tr>
                     );
                   })
                 )}
-              </div>
+              </tbody>
+            </table>
 
-              {/* Add Lead in this column button */}
-              {!loading && (
-                <button
-                  onClick={() => setModalStage(stage)}
-                  className="mt-3 flex-none flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-zinc-300/80 bg-white/70 py-2.5 text-xs font-bold text-zinc-500 hover:border-emerald-500 hover:bg-emerald-50/60 hover:text-emerald-700 transition-all shadow-2xs"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 5v14M5 12h14" strokeLinecap="round"/></svg>
-                  Add Lead
-                </button>
-              )}
-            </div>
-          );
-        })}
-      </div>
+            {filteredLeads.length > 0 && (
+              <div className="border-t border-zinc-100 bg-zinc-50/50 px-5 py-3 flex items-center justify-between text-xs text-zinc-500 font-medium">
+                <span>Showing <strong>{filteredLeads.length}</strong> of <strong>{leads.length}</strong> enquiries</span>
+                <span>Confirmed: <strong>{confirmedCount}</strong></span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Reminder Notification Popups ────────────────────────────────────── */}
       <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none">

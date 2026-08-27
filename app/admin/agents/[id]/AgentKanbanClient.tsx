@@ -78,6 +78,22 @@ export default function AgentKanbanClient({ agent, initialLeads }: { agent: Agen
 
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [viewMode, setViewMode] = useState<"kanban" | "table">("kanban");
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("agent_leads_view_mode");
+      if (saved === "kanban" || saved === "table") {
+        setViewMode(saved);
+      }
+    } catch {}
+  }, []);
+
+  function handleSetViewMode(mode: "kanban" | "table") {
+    setViewMode(mode);
+    try {
+      localStorage.setItem("agent_leads_view_mode", mode);
+    } catch {}
+  }
   const [modalStage, setModalStage] = useState<Stage | null>(null);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -262,7 +278,7 @@ export default function AgentKanbanClient({ agent, initialLeads }: { agent: Agen
           {/* View mode toggle */}
           <div className="ml-2 flex items-center rounded-xl border border-zinc-200 bg-zinc-100 p-1">
             <button
-              onClick={() => setViewMode("kanban")}
+              onClick={() => handleSetViewMode("kanban")}
               className={`flex items-center justify-center rounded-lg p-2 transition-colors ${
                 viewMode === "kanban" ? "bg-white text-zinc-900 shadow-xs" : "text-zinc-500 hover:text-zinc-800"
               }`}
@@ -271,7 +287,7 @@ export default function AgentKanbanClient({ agent, initialLeads }: { agent: Agen
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>
             </button>
             <button
-              onClick={() => setViewMode("table")}
+              onClick={() => handleSetViewMode("table")}
               className={`flex items-center justify-center rounded-lg p-2 transition-colors ${
                 viewMode === "table" ? "bg-white text-zinc-900 shadow-xs" : "text-zinc-500 hover:text-zinc-800"
               }`}

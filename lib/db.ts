@@ -479,7 +479,7 @@ export async function updateLead(
 
 export async function deleteLead(id: string, ownerId: string): Promise<void> {
   await dbConnect();
-  await LeadModel.updateOne({ id, ownerId }, { $set: { deletedAt: new Date().toISOString() } });
+  await LeadModel.updateOne({ id, ownerId }, { $set: { deletedAt: new Date().toISOString(), stage: "Closed" } });
 }
 
 export async function getLeadByIdAdmin(id: string): Promise<Lead | undefined> {
@@ -504,31 +504,31 @@ export async function updateLeadAdmin(
 
 export async function deleteLeadAdmin(id: string): Promise<Lead | undefined> {
   await dbConnect();
-  const doc = await LeadModel.findOneAndUpdate({ id }, { $set: { deletedAt: new Date().toISOString() } }, { returnDocument: "after" });
+  const doc = await LeadModel.findOneAndUpdate({ id }, { $set: { deletedAt: new Date().toISOString(), stage: "Closed" } }, { returnDocument: "after" });
   return doc ? toPlain<Lead>(doc) : undefined;
 }
 
 export async function restoreLeadAdmin(id: string): Promise<Lead | undefined> {
   await dbConnect();
-  const doc = await LeadModel.findOneAndUpdate({ id }, { $set: { deletedAt: null } }, { returnDocument: "after" });
+  const doc = await LeadModel.findOneAndUpdate({ id }, { $set: { deletedAt: null, stage: "Initial" } }, { returnDocument: "after" });
   return doc ? toPlain<Lead>(doc) : undefined;
 }
 
 export async function restoreLead(id: string, ownerId: string): Promise<Lead | undefined> {
   await dbConnect();
-  const doc = await LeadModel.findOneAndUpdate({ id, ownerId }, { $set: { deletedAt: null } }, { returnDocument: "after" });
+  const doc = await LeadModel.findOneAndUpdate({ id, ownerId }, { $set: { deletedAt: null, stage: "Initial" } }, { returnDocument: "after" });
   return doc ? toPlain<Lead>(doc) : undefined;
 }
 
 export async function getDeletedLeads(): Promise<Lead[]> {
   await dbConnect();
-  const docs = await LeadModel.find({ deletedAt: { $ne: null } });
+  const docs = await LeadModel.find({ $or: [{ deletedAt: { $ne: null } }, { stage: "Closed" }] });
   return docs.map((d) => toPlain<Lead>(d));
 }
 
 export async function getDeletedLeadsByOwner(ownerId: string): Promise<Lead[]> {
   await dbConnect();
-  const docs = await LeadModel.find({ ownerId, deletedAt: { $ne: null } });
+  const docs = await LeadModel.find({ ownerId, $or: [{ deletedAt: { $ne: null } }, { stage: "Closed" }] });
   return docs.map((d) => toPlain<Lead>(d));
 }
 

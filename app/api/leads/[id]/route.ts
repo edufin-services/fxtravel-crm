@@ -93,32 +93,6 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/leads/
   if (stage !== undefined) {
     if (!STAGES.includes(stage)) return NextResponse.json({ error: "Invalid stage." }, { status: 400 });
 
-    // Fetch current lead to validate transition
-    const current = await getLeadById(id, session.userId);
-    if (!current) return NextResponse.json({ error: "Lead not found." }, { status: 404 });
-
-    // No transition — skip all checks
-    if (stage === current.stage) {
-      updates.stage = stage;
-      const lead = await updateLead(id, session.userId, updates);
-      if (!lead) return NextResponse.json({ error: "Lead not found." }, { status: 404 });
-      return NextResponse.json({ lead });
-    }
-
-    const currentIndex = STAGES.indexOf(current.stage);
-    const newIndex = STAGES.indexOf(stage);
-
-    // Only next stage allowed
-    if (newIndex !== currentIndex + 1) {
-      const nextStageName = STAGES[currentIndex + 1];
-      return NextResponse.json(
-        { error: nextStageName ? `You can only advance to "${nextStageName}" next.` : "This lead is already at the final stage." },
-        { status: 400 }
-      );
-    }
-
-
-
     updates.stage = stage;
     const lead = await updateLead(id, session.userId, updates);
     if (!lead) return NextResponse.json({ error: "Lead not found." }, { status: 404 });

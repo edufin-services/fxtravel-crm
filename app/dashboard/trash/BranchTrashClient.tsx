@@ -60,9 +60,9 @@ export default function BranchTrashClient({ initialLeads }: { initialLeads: Lead
     <div className="space-y-5 max-w-6xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-zinc-900 tracking-tight">Trash</h1>
+          <h1 className="text-2xl font-black text-zinc-900 tracking-tight">Trash / Closed Leads</h1>
           <p className="mt-0.5 text-sm text-zinc-400">
-            {leads.length} deleted lead{leads.length !== 1 ? "s" : ""} · Restore to bring a lead back into your active pipeline
+            {leads.length} closed / trash lead{leads.length !== 1 ? "s" : ""} · Restore to bring a lead back into your active pipeline
           </p>
         </div>
         <Link href="/dashboard/leads" className="text-sm font-semibold text-brand-600 hover:text-brand-700">
@@ -76,7 +76,7 @@ export default function BranchTrashClient({ initialLeads }: { initialLeads: Lead
         </svg>
         <input
           type="text"
-          placeholder="Search deleted leads..."
+          placeholder="Search closed / deleted leads..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="w-full bg-transparent text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none"
@@ -92,7 +92,7 @@ export default function BranchTrashClient({ initialLeads }: { initialLeads: Lead
                 <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Channel</th>
                 <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Stage</th>
                 <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-zinc-400 text-right">Value</th>
-                <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Deleted</th>
+                <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Date Closed / Deleted</th>
                 <th className="px-5 py-3 w-24" />
               </tr>
             </thead>
@@ -100,7 +100,7 @@ export default function BranchTrashClient({ initialLeads }: { initialLeads: Lead
               {filteredLeads.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-14 text-center text-sm text-zinc-400">
-                    {leads.length === 0 ? "Trash is empty" : "No deleted leads match your search"}
+                    {leads.length === 0 ? "Trash is empty" : "No closed or deleted leads match your search"}
                   </td>
                 </tr>
               ) : (
@@ -118,7 +118,11 @@ export default function BranchTrashClient({ initialLeads }: { initialLeads: Lead
                     </td>
                     <td className="px-5 py-3.5 text-right font-semibold text-zinc-800 tabular-nums">{lead.value ? fmt(lead.value) : <span className="text-zinc-300">—</span>}</td>
                     <td className="px-5 py-3.5 text-zinc-400 text-xs">
-                      {lead.deletedAt ? new Date(lead.deletedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                      {lead.deletedAt
+                        ? new Date(lead.deletedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+                        : lead.stage === "Closed"
+                        ? "Closed"
+                        : "—"}
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <button
@@ -136,7 +140,7 @@ export default function BranchTrashClient({ initialLeads }: { initialLeads: Lead
           </table>
           {filteredLeads.length > 0 && (
             <div className="border-t border-zinc-50 px-5 py-2.5 text-xs text-zinc-400">
-              {filteredLeads.length} deleted lead{filteredLeads.length !== 1 ? "s" : ""}
+              {filteredLeads.length} closed / trash lead{filteredLeads.length !== 1 ? "s" : ""}
             </div>
           )}
         </div>

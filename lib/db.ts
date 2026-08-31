@@ -7,9 +7,12 @@ import {
   ContactModel,
   ConversationModel,
   CorporateModel,
+  EmailReportLogModel,
   ImportedLeadModel,
+  LeadActivityModel,
   LeadModel,
   MessageModel,
+  ReportSettingsModel,
   ResetTokenModel,
   SimPlanModel,
   TaskModel,
@@ -204,6 +207,52 @@ export type ImportedLead = {
   assignedAt?: string | null;
   uploadedAt: string;
   fileName?: string;
+};
+
+export type LeadActivityType = "stage_change" | "new_lead" | "lead_confirmed" | "lead_updated" | "lead_deleted";
+
+export type LeadActivity = {
+  id: string;
+  type: LeadActivityType;
+  leadId: string;
+  leadName: string;
+  channel?: string;
+  ownerId?: string;
+  ownerName?: string;
+  previousStage?: string;
+  newStage?: string;
+  value?: number;
+  phone?: string;
+  email?: string;
+  details?: string;
+  timestamp: string;
+  metadata?: Record<string, any>;
+};
+
+export type ReportSettings = {
+  id: string;
+  dailyEnabled: boolean;
+  weeklyEnabled: boolean;
+  dailyReportTime: string;
+  weeklyReportDay: number;
+  lastDailySentAt: string | null;
+  lastWeeklySentAt: string | null;
+  customRecipientEmail?: string;
+};
+
+export type EmailReportLog = {
+  id: string;
+  reportType: "daily" | "weekly" | "manual";
+  recipient: string;
+  subject: string;
+  sentAt: string;
+  status: "success" | "failed";
+  leadCount: number;
+  stageChangeCount: number;
+  confirmedCount: number;
+  periodStart?: string;
+  periodEnd?: string;
+  error?: string;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -449,6 +498,53 @@ export async function getLeadsByOwner(ownerId: string): Promise<Lead[]> {
   return docs.map((d) => toPlain<Lead>(d));
 }
 
+// ── Lead Activity Logging ──────────────────────────────────────────────────
+
+export async function logLeadActivity(
+  activity: Omit<LeadActivity, "id" | "timestamp"> & { timestamp?: string }
+): Promise<LeadActivity> {
+  try {
+    await dbConnect();
+    const entry: LeadActivity = {
+      ...activity,
+      id: crypto.randomUUID(),
+      timestamp: activity.timestamp || new Date().toISOString(),
+    };
+    await LeadActivityModel.create(entry);
+    return entry;
+  } catch (err) {
+    console.error("[audit] Failed to log lead activity:", err);
+    return {
+      ...activity,
+      id: crypto.randomUUID(),
+      timestamp: activity.timestamp || new Date().toISOString(),
+    };
+  }
+}
+
+export async function getLeadActivities(filter?: {
+  since?: string;
+  until?: string;
+  leadId?: string;
+  type?: LeadActivityType;
+  ownerId?: string;
+  limit?: number;
+}): Promise<LeadActivity[]> {
+  await dbConnect();
+  const query: Record<string, any> = {};
+  if (filter?.since || filter?.until) {
+    query.timestamp = {};
+    if (filter.since) query.timestamp.$gte = filter.since;
+    if (filter.until) query.timestamp.$lte = filter.until;
+  }
+  if (filter?.leadId) query.leadId = filter.leadId;
+  if (filter?.type) query.type = filter.type;
+  if (filter?.ownerId) query.ownerId = filter.ownerId;
+  const limit = filter?.limit ?? 500;
+  const docs = await LeadActivityModel.find(query).sort({ timestamp: -1 }).limit(limit);
+  return docs.map((d) => toPlain<LeadActivity>(d));
+}
+
 export async function getLeadByWhatsappId(ownerId: string, whatsappId: string): Promise<Lead | undefined> {
   await dbConnect();
   const doc = await LeadModel.findOne({ ownerId, whatsappId, deletedAt: null });
@@ -459,6 +555,36 @@ export async function createLead(lead: Omit<Lead, "id" | "createdAt">): Promise<
   await dbConnect();
   const newLead: Lead = { ...lead, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
   await LeadModel.create(newLead);
+
+  // Auto-log new lead activity
+  logLeadActivity({
+    type: "new_lead",
+    leadId: newLead.id,
+    leadName: newLead.name,
+    channel: newLead.channel,
+    ownerId: newLead.ownerId,
+    newStage: newLead.stage,
+    value: newLead.value,
+    phone: newLead.phone,
+    email: newLead.email,
+    details: `New lead created via ${newLead.channel || "CRM"} in stage "${newLead.stage}"`,
+  }).catch((err) => console.error("[audit] createLead log error:", err));
+
+  if (newLead.stage === "Confirmed") {
+    logLeadActivity({
+      type: "lead_confirmed",
+      leadId: newLead.id,
+      leadName: newLead.name,
+      channel: newLead.channel,
+      ownerId: newLead.ownerId,
+      newStage: "Confirmed",
+      value: newLead.value,
+      phone: newLead.phone,
+      email: newLead.email,
+      details: `Lead created directly in Confirmed stage (Value: ${newLead.value || 0})`,
+    }).catch((err) => console.error("[audit] lead_confirmed log error:", err));
+  }
+
   return newLead;
 }
 
@@ -473,13 +599,81 @@ export async function updateLead(
   >>
 ): Promise<Lead | undefined> {
   await dbConnect();
+  const prevDoc = await LeadModel.findOne({ id, ownerId });
+  const prev = prevDoc ? toPlain<Lead>(prevDoc) : undefined;
+
   const doc = await LeadModel.findOneAndUpdate({ id, ownerId }, { $set: updates }, { returnDocument: "after" });
-  return doc ? toPlain<Lead>(doc) : undefined;
+  if (!doc) return undefined;
+  const updated = toPlain<Lead>(doc);
+
+  if (prev && updates.stage && updates.stage !== prev.stage) {
+    logLeadActivity({
+      type: "stage_change",
+      leadId: updated.id,
+      leadName: updated.name,
+      channel: updated.channel,
+      ownerId: updated.ownerId,
+      previousStage: prev.stage,
+      newStage: updates.stage,
+      value: updated.value,
+      phone: updated.phone,
+      email: updated.email,
+      details: `Stage updated from "${prev.stage}" to "${updates.stage}"`,
+    }).catch((err) => console.error("[audit] stage_change log error:", err));
+
+    if (updates.stage === "Confirmed" && prev.stage !== "Confirmed") {
+      logLeadActivity({
+        type: "lead_confirmed",
+        leadId: updated.id,
+        leadName: updated.name,
+        channel: updated.channel,
+        ownerId: updated.ownerId,
+        previousStage: prev.stage,
+        newStage: "Confirmed",
+        value: updated.value,
+        phone: updated.phone,
+        email: updated.email,
+        details: `Lead reached Confirmed milestone! (Value: ${updated.value || 0})`,
+      }).catch((err) => console.error("[audit] lead_confirmed log error:", err));
+    }
+  } else if (prev) {
+    logLeadActivity({
+      type: "lead_updated",
+      leadId: updated.id,
+      leadName: updated.name,
+      channel: updated.channel,
+      ownerId: updated.ownerId,
+      newStage: updated.stage,
+      value: updated.value,
+      phone: updated.phone,
+      email: updated.email,
+      details: `Lead details updated`,
+    }).catch((err) => console.error("[audit] lead_updated log error:", err));
+  }
+
+  return updated;
 }
 
 export async function deleteLead(id: string, ownerId: string): Promise<void> {
   await dbConnect();
-  await LeadModel.updateOne({ id, ownerId }, { $set: { deletedAt: new Date().toISOString(), stage: "Closed" } });
+  const doc = await LeadModel.findOneAndUpdate(
+    { id, ownerId },
+    { $set: { deletedAt: new Date().toISOString(), stage: "Closed" } },
+    { returnDocument: "after" }
+  );
+  if (doc) {
+    const l = toPlain<Lead>(doc);
+    logLeadActivity({
+      type: "lead_deleted",
+      leadId: l.id,
+      leadName: l.name,
+      channel: l.channel,
+      ownerId: l.ownerId,
+      previousStage: l.stage,
+      newStage: "Closed",
+      details: `Lead deleted / closed`,
+    }).catch((err) => console.error("[audit] deleteLead log error:", err));
+  }
 }
 
 export async function getLeadByIdAdmin(id: string): Promise<Lead | undefined> {
@@ -498,26 +692,123 @@ export async function updateLeadAdmin(
   >>
 ): Promise<Lead | undefined> {
   await dbConnect();
+  const prevDoc = await LeadModel.findOne({ id });
+  const prev = prevDoc ? toPlain<Lead>(prevDoc) : undefined;
+
   const doc = await LeadModel.findOneAndUpdate({ id }, { $set: updates }, { returnDocument: "after" });
-  return doc ? toPlain<Lead>(doc) : undefined;
+  if (!doc) return undefined;
+  const updated = toPlain<Lead>(doc);
+
+  if (prev && updates.stage && updates.stage !== prev.stage) {
+    logLeadActivity({
+      type: "stage_change",
+      leadId: updated.id,
+      leadName: updated.name,
+      channel: updated.channel,
+      ownerId: updated.ownerId,
+      previousStage: prev.stage,
+      newStage: updates.stage,
+      value: updated.value,
+      phone: updated.phone,
+      email: updated.email,
+      details: `Admin updated stage from "${prev.stage}" to "${updates.stage}"`,
+    }).catch((err) => console.error("[audit] admin stage_change log error:", err));
+
+    if (updates.stage === "Confirmed" && prev.stage !== "Confirmed") {
+      logLeadActivity({
+        type: "lead_confirmed",
+        leadId: updated.id,
+        leadName: updated.name,
+        channel: updated.channel,
+        ownerId: updated.ownerId,
+        previousStage: prev.stage,
+        newStage: "Confirmed",
+        value: updated.value,
+        phone: updated.phone,
+        email: updated.email,
+        details: `Lead confirmed via Admin (Value: ${updated.value || 0})`,
+      }).catch((err) => console.error("[audit] admin lead_confirmed log error:", err));
+    }
+  } else if (prev) {
+    logLeadActivity({
+      type: "lead_updated",
+      leadId: updated.id,
+      leadName: updated.name,
+      channel: updated.channel,
+      ownerId: updated.ownerId,
+      newStage: updated.stage,
+      value: updated.value,
+      phone: updated.phone,
+      email: updated.email,
+      details: `Admin updated lead details`,
+    }).catch((err) => console.error("[audit] admin lead_updated log error:", err));
+  }
+
+  return updated;
 }
 
 export async function deleteLeadAdmin(id: string): Promise<Lead | undefined> {
   await dbConnect();
-  const doc = await LeadModel.findOneAndUpdate({ id }, { $set: { deletedAt: new Date().toISOString(), stage: "Closed" } }, { returnDocument: "after" });
-  return doc ? toPlain<Lead>(doc) : undefined;
+  const doc = await LeadModel.findOneAndUpdate(
+    { id },
+    { $set: { deletedAt: new Date().toISOString(), stage: "Closed" } },
+    { returnDocument: "after" }
+  );
+  if (doc) {
+    const l = toPlain<Lead>(doc);
+    logLeadActivity({
+      type: "lead_deleted",
+      leadId: l.id,
+      leadName: l.name,
+      channel: l.channel,
+      ownerId: l.ownerId,
+      previousStage: l.stage,
+      newStage: "Closed",
+      details: `Admin deleted / closed lead`,
+    }).catch((err) => console.error("[audit] deleteLeadAdmin log error:", err));
+    return l;
+  }
+  return undefined;
 }
 
 export async function restoreLeadAdmin(id: string): Promise<Lead | undefined> {
   await dbConnect();
   const doc = await LeadModel.findOneAndUpdate({ id }, { $set: { deletedAt: null, stage: "Initial" } }, { returnDocument: "after" });
-  return doc ? toPlain<Lead>(doc) : undefined;
+  if (doc) {
+    const l = toPlain<Lead>(doc);
+    logLeadActivity({
+      type: "stage_change",
+      leadId: l.id,
+      leadName: l.name,
+      channel: l.channel,
+      ownerId: l.ownerId,
+      previousStage: "Closed",
+      newStage: "Initial",
+      details: `Admin restored lead to Initial stage`,
+    }).catch((err) => console.error("[audit] restoreLeadAdmin log error:", err));
+    return l;
+  }
+  return undefined;
 }
 
 export async function restoreLead(id: string, ownerId: string): Promise<Lead | undefined> {
   await dbConnect();
   const doc = await LeadModel.findOneAndUpdate({ id, ownerId }, { $set: { deletedAt: null, stage: "Initial" } }, { returnDocument: "after" });
-  return doc ? toPlain<Lead>(doc) : undefined;
+  if (doc) {
+    const l = toPlain<Lead>(doc);
+    logLeadActivity({
+      type: "stage_change",
+      leadId: l.id,
+      leadName: l.name,
+      channel: l.channel,
+      ownerId: l.ownerId,
+      previousStage: "Closed",
+      newStage: "Initial",
+      details: `Lead restored to Initial stage`,
+    }).catch((err) => console.error("[audit] restoreLead log error:", err));
+    return l;
+  }
+  return undefined;
 }
 
 export async function getDeletedLeads(): Promise<Lead[]> {
@@ -1059,5 +1350,51 @@ export async function deleteImportedLeads(ids: string[]): Promise<number> {
   await dbConnect();
   const res = await ImportedLeadModel.deleteMany({ id: { $in: ids } });
   return res.deletedCount || 0;
+}
+
+// ── Automated Report Settings & Email Logs ─────────────────────────────────
+
+export async function getReportSettings(): Promise<ReportSettings> {
+  await dbConnect();
+  let doc = await ReportSettingsModel.findOne({ id: "report_settings" });
+  if (!doc) {
+    doc = await ReportSettingsModel.create({
+      id: "report_settings",
+      dailyEnabled: true,
+      weeklyEnabled: true,
+      dailyReportTime: "20:00",
+      weeklyReportDay: 0,
+      lastDailySentAt: null,
+      lastWeeklySentAt: null,
+      customRecipientEmail: "",
+    });
+  }
+  return toPlain<ReportSettings>(doc);
+}
+
+export async function updateReportSettings(updates: Partial<ReportSettings>): Promise<ReportSettings> {
+  await dbConnect();
+  await ReportSettingsModel.updateOne(
+    { id: "report_settings" },
+    { $set: updates },
+    { upsert: true }
+  );
+  return getReportSettings();
+}
+
+export async function logEmailReport(report: Omit<EmailReportLog, "id">): Promise<EmailReportLog> {
+  await dbConnect();
+  const entry: EmailReportLog = {
+    ...report,
+    id: crypto.randomUUID(),
+  };
+  await EmailReportLogModel.create(entry);
+  return entry;
+}
+
+export async function getEmailReportLogs(limit = 50): Promise<EmailReportLog[]> {
+  await dbConnect();
+  const docs = await EmailReportLogModel.find().sort({ sentAt: -1 }).limit(limit);
+  return docs.map((d) => toPlain<EmailReportLog>(d));
 }
 

@@ -287,3 +287,64 @@ const ImportedLeadSchema = new Schema({
 });
 
 export const ImportedLeadModel = models.ImportedLead ?? model("ImportedLead", ImportedLeadSchema);
+
+// ── Lead Activity / Change Event ──────────────────────────────────────────
+
+const LeadActivitySchema = new Schema({
+  id: { type: String, required: true, unique: true },
+  type: {
+    type: String,
+    enum: ["stage_change", "new_lead", "lead_confirmed", "lead_updated", "lead_deleted"],
+    required: true,
+    index: true,
+  },
+  leadId: { type: String, required: true, index: true },
+  leadName: { type: String, required: true },
+  channel: { type: String, default: "WhatsApp" },
+  ownerId: { type: String, default: "" },
+  ownerName: { type: String, default: "" },
+  previousStage: { type: String, default: "" },
+  newStage: { type: String, default: "" },
+  value: { type: Number, default: 0 },
+  phone: { type: String, default: "" },
+  email: { type: String, default: "" },
+  details: { type: String, default: "" },
+  timestamp: { type: String, required: true, index: true },
+  metadata: { type: Schema.Types.Mixed, default: {} },
+});
+
+export const LeadActivityModel = models.LeadActivity ?? model("LeadActivity", LeadActivitySchema);
+
+// ── Report Settings ───────────────────────────────────────────────────────
+
+const ReportSettingsSchema = new Schema({
+  id: { type: String, default: "report_settings", unique: true },
+  dailyEnabled: { type: Boolean, default: true },
+  weeklyEnabled: { type: Boolean, default: true },
+  dailyReportTime: { type: String, default: "20:00" }, // 8:00 PM IST
+  weeklyReportDay: { type: Number, default: 0 }, // 0 = Sunday
+  lastDailySentAt: { type: String, default: null },
+  lastWeeklySentAt: { type: String, default: null },
+  customRecipientEmail: { type: String, default: "" },
+});
+
+export const ReportSettingsModel = models.ReportSettings ?? model("ReportSettings", ReportSettingsSchema);
+
+// ── Email Report Log ──────────────────────────────────────────────────────
+
+const EmailReportLogSchema = new Schema({
+  id: { type: String, required: true, unique: true },
+  reportType: { type: String, enum: ["daily", "weekly", "manual"], required: true, index: true },
+  recipient: { type: String, required: true },
+  subject: { type: String, required: true },
+  sentAt: { type: String, required: true, index: true },
+  status: { type: String, enum: ["success", "failed"], default: "success" },
+  leadCount: { type: Number, default: 0 },
+  stageChangeCount: { type: Number, default: 0 },
+  confirmedCount: { type: Number, default: 0 },
+  periodStart: { type: String, default: "" },
+  periodEnd: { type: String, default: "" },
+  error: { type: String, default: "" },
+});
+
+export const EmailReportLogModel = models.EmailReportLog ?? model("EmailReportLog", EmailReportLogSchema);

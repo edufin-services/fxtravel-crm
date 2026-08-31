@@ -263,6 +263,7 @@ const AdminSettingsSchema = new Schema({
   companyIndustry: { type: String, default: "Travel & Forex CRM" },
   companyTimezone: { type: String, default: "Asia/Kolkata (IST)" },
   passwordHash: String,
+  metaRoundRobinIndex: { type: Number, default: 0 },
 });
 
 export const AdminSettingsModel = models.AdminSettings ?? model("AdminSettings", AdminSettingsSchema);

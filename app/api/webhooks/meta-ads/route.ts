@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createLead, getAllUsers } from "@/lib/db";
-import { LeadModel } from "@/lib/models";
+import { AdminSettingsModel, LeadModel } from "@/lib/models";
 import { dbConnect } from "@/lib/mongoose";
 
 // ── GET: Webhook Verification Endpoint for Meta ──────────────────────────────
@@ -141,24 +141,46 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Determine lead owner (default to first active admin or round-robin user)
+        // Determine lead owner using Round-Robin across active CRM users
         const users = await getAllUsers();
-        const defaultOwnerId = users[0]?.id || "admin";
+        let assignedOwnerId = "admin";
+        let assignedOwnerName = "Admin";
 
-        // Create lead in CRM Initial Stage
+        if (users.length > 0) {
+          // Atomically increment round-robin counter
+          const settings = await AdminSettingsModel.findOneAndUpdate(
+            { id: "admin_settings" },
+            { $inc: { metaRoundRobinIndex: 1 } },
+            { upsert: true, new: true }
+          );
+
+          const index = (settings.metaRoundRobinIndex || 0) % users.length;
+          const assignedUser = users[index];
+          if (assignedUser) {
+            assignedOwnerId = assignedUser.id;
+            assignedOwnerName = assignedUser.name;
+          }
+        }
+
+        // Create lead in CRM Initial Stage for the assigned user
         const created = await createLead({
-          ownerId: defaultOwnerId,
+          ownerId: assignedOwnerId,
           name: leadName,
           phone: cleanPhone || rawPhone || "—",
           email: leadEmail,
           channel: leadPlatform === "Instagram" ? "Instagram" : "Facebook",
           stage: "Initial",
           value: 0,
-          notes: `Lead from Meta Lead Ads · Form ID: ${formId || "N/A"} · Leadgen ID: ${leadgenId}`,
+          notes: `Meta Lead Ads (Round-Robin to ${assignedOwnerName}) · Form ID: ${formId || "N/A"} · Leadgen ID: ${leadgenId}`,
           services: [],
         });
 
-        results.push({ status: "created", leadId: created.id, leadgenId });
+        results.push({
+          status: "created",
+          leadId: created.id,
+          leadgenId,
+          assignedTo: { id: assignedOwnerId, name: assignedOwnerName },
+        });
       }
     }
 

@@ -6,6 +6,7 @@ import { CHANNELS, SERVICES, STAGES, type Channel, type Stage } from "@/lib/cons
 import { formatRelativeTime } from "@/lib/format";
 import LeadDrawer, { type DrawerLead, type LeadDocument } from "./LeadDrawer";
 import SetReminderModal from "./SetReminderModal";
+import { playReminderChime, sendBrowserNotification } from "@/lib/sound";
 
 type Lead = DrawerLead & { value: number };
 
@@ -100,6 +101,65 @@ const STAGE_COLORS: Record<string, string> = {
   Closed: "bg-red-50 text-red-700 border-red-200/80",
 };
 
+export function getReminderStatus(reminderAt?: string | null): {
+  state: "none" | "overdue" | "duesoon" | "today" | "future";
+  label: string;
+  relativeText: string;
+  dateText: string;
+} {
+  if (!reminderAt) {
+    return { state: "none", label: "Set reminder", relativeText: "", dateText: "" };
+  }
+  const fireTime = new Date(reminderAt).getTime();
+  if (isNaN(fireTime)) {
+    return { state: "none", label: "Set reminder", relativeText: "", dateText: "" };
+  }
+  const now = Date.now();
+  const diffMs = fireTime - now;
+
+  const dateObj = new Date(reminderAt);
+  const dateText = dateObj.toLocaleDateString("en-IN", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  const isToday =
+    dateObj.getDate() === new Date().getDate() &&
+    dateObj.getMonth() === new Date().getMonth() &&
+    dateObj.getFullYear() === new Date().getFullYear();
+
+  if (diffMs <= 0) {
+    const pastMinutes = Math.floor(Math.abs(diffMs) / (60 * 1000));
+    const overdueText =
+      pastMinutes < 1
+        ? "Due now"
+        : pastMinutes < 60
+        ? `${pastMinutes}m overdue`
+        : pastMinutes < 1440
+        ? `${Math.floor(pastMinutes / 60)}h overdue`
+        : `${Math.floor(pastMinutes / 1440)}d overdue`;
+
+    return { state: "overdue", label: overdueText, relativeText: overdueText, dateText };
+  }
+
+  if (diffMs <= 2 * 60 * 60 * 1000) {
+    const inMinutes = Math.max(1, Math.floor(diffMs / (60 * 1000)));
+    return { state: "duesoon", label: `Due in ${inMinutes}m`, relativeText: `In ${inMinutes}m`, dateText };
+  }
+
+  if (isToday) {
+    const timeOnly = dateObj.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
+    return { state: "today", label: `Today ${timeOnly}`, relativeText: `Today ${timeOnly}`, dateText };
+  }
+
+  const shortDate = dateObj.toLocaleDateString("en-IN", { month: "short", day: "numeric" });
+  const timeOnly = dateObj.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
+  return { state: "future", label: `${shortDate}, ${timeOnly}`, relativeText: `${shortDate}, ${timeOnly}`, dateText };
+}
+
 // ── Skeleton card ──────────────────────────────────────────────────────────────
 function SkeletonCard() {
   return (
@@ -157,6 +217,13 @@ function LeadsPageContent() {
   const [viewingNoteLead, setViewingNoteLead] = useState<Lead | null>(null);
   const [reminderLead, setReminderLead] = useState<Lead | null>(null);
   const [myId, setMyId] = useState<string>("");
+  const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
+
+  // Ensure body scroll is unlocked when on the page
+  useEffect(() => {
+    document.body.style.overflow = "";
+    document.body.classList.remove("modal-open");
+  }, []);
 
   // ── Reminder notification state ─────────────────────────────────────────────
   type ReminderAlert = { leadId: string; leadName: string; note: string; firedAt: Date };
@@ -189,21 +256,32 @@ function LeadsPageContent() {
   useEffect(() => {
     function checkReminders() {
       const now = Date.now();
+      let hasFiredNew = false;
+
       leads.forEach((lead) => {
         if (!lead.reminderAt) return;
         const fireTime = new Date(lead.reminderAt).getTime();
         if (fireTime <= now && !firedReminderIds.current.has(lead.id)) {
           firedReminderIds.current.add(lead.id);
+          hasFiredNew = true;
           setReminderAlerts((prev) => [
             ...prev,
             { leadId: lead.id, leadName: lead.name, note: lead.notes ?? "", firedAt: new Date() },
           ]);
+
+          sendBrowserNotification(`Reminder: ${lead.name}`, {
+            body: lead.notes ? `${lead.notes}` : "Follow up reminder is due now.",
+          });
         }
       });
+
+      if (hasFiredNew) {
+        playReminderChime();
+      }
     }
 
     checkReminders();
-    const interval = setInterval(checkReminders, 30_000);
+    const interval = setInterval(checkReminders, 15_000);
     return () => clearInterval(interval);
   }, [leads]);
 
@@ -219,9 +297,18 @@ function LeadsPageContent() {
     });
   }
 
-  function snoozeReminder(leadId: string) {
-    // Snooze for 10 minutes
-    const newTime = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  function snoozeReminder(leadId: string, duration: 15 | 60 | "tomorrow" = 15) {
+    let target = new Date();
+    if (duration === 15) {
+      target = new Date(Date.now() + 15 * 60 * 1000);
+    } else if (duration === 60) {
+      target = new Date(Date.now() + 60 * 60 * 1000);
+    } else if (duration === "tomorrow") {
+      target.setDate(target.getDate() + 1);
+      target.setHours(9, 0, 0, 0);
+    }
+
+    const newTime = target.toISOString();
     setReminderAlerts((prev) => prev.filter((a) => a.leadId !== leadId));
     firedReminderIds.current.delete(leadId); // allow it to fire again
     fetch(`/api/leads/${leadId}`, {
@@ -238,7 +325,7 @@ function LeadsPageContent() {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(deal),
     });
     const data = await res.json();
-    if (res.ok) { setLeads((p) => [...p, data.lead]); setModalStage(null); }
+    if (res.ok) { setLeads((p) => [data.lead, ...p]); setModalStage(null); }
     return data;
   }
 
@@ -376,8 +463,12 @@ function LeadsPageContent() {
       }
 
       return matchStage && matchChannel && matchService && matchDate;
+    }).sort((a, b) => {
+      const timeA = new Date(a.createdAt || 0).getTime();
+      const timeB = new Date(b.createdAt || 0).getTime();
+      return sortOrder === "desc" ? timeB - timeA : timeA - timeB;
     });
-  }, [leads, stageFilter, channelFilter, serviceFilter, datePreset, startDate, endDate]);
+  }, [leads, stageFilter, channelFilter, serviceFilter, datePreset, startDate, endDate, sortOrder]);
 
   const confirmedCount = filteredLeads.filter((l) => l.stage === "Confirmed").length;
   const total = filteredLeads.length;
@@ -555,7 +646,11 @@ function LeadsPageContent() {
             const meta = stageMeta[stage] ?? stageMeta["Initial"];
             const deals = filteredLeads
               .filter((l) => l.stage === stage)
-              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+              .sort((a, b) => {
+                const timeA = new Date(a.createdAt || 0).getTime();
+                const timeB = new Date(b.createdAt || 0).getTime();
+                return sortOrder === "desc" ? timeB - timeA : timeA - timeB;
+              });
 
             return (
               <div
@@ -666,17 +761,46 @@ function LeadsPageContent() {
 
                           {/* Footer: Set Reminder + Stage transition button */}
                           <div className="mt-3.5 flex items-center justify-between border-t border-zinc-100 pt-3 gap-2">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setReminderLead(deal); }}
-                              className={`flex h-7 w-7 items-center justify-center rounded-xl border transition-all shadow-2xs shrink-0 ${
-                                deal.reminderAt
-                                  ? "bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 shadow-emerald-500/20"
-                                  : "bg-zinc-100 text-zinc-400 border-zinc-200/80 hover:bg-zinc-200 hover:text-zinc-700"
-                              }`}
-                              title={deal.reminderAt ? `Reminder active: ${new Date(deal.reminderAt).toLocaleString()}` : "Set Reminder Alert"}
-                            >
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                            </button>
+                            {(() => {
+                              const remStatus = getReminderStatus(deal.reminderAt);
+                              return (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setReminderLead(deal); }}
+                                  className={`relative flex h-7 w-7 items-center justify-center rounded-xl border transition-all shadow-2xs shrink-0 ${
+                                    remStatus.state === "overdue"
+                                      ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100 shadow-red-500/10"
+                                      : remStatus.state === "duesoon"
+                                      ? "bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100 shadow-amber-500/10"
+                                      : remStatus.state === "today"
+                                      ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                                      : remStatus.state === "future"
+                                      ? "bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100 shadow-emerald-500/10"
+                                      : "bg-zinc-50 text-zinc-400 border-zinc-200/80 hover:bg-zinc-100 hover:text-zinc-700"
+                                  }`}
+                                  title={deal.reminderAt ? `Reminder: ${remStatus.dateText} (${remStatus.label})` : "Set reminder"}
+                                  aria-label={deal.reminderAt ? `Reminder: ${remStatus.label}` : "Set reminder"}
+                                >
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                                  </svg>
+                                  {remStatus.state === "overdue" && (
+                                    <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600 ring-2 ring-white" />
+                                    </span>
+                                  )}
+                                  {remStatus.state === "duesoon" && (
+                                    <span className="absolute -top-1 -right-1 flex h-2 w-2 rounded-full bg-amber-500 ring-2 ring-white" />
+                                  )}
+                                  {remStatus.state === "today" && (
+                                    <span className="absolute -top-1 -right-1 flex h-2 w-2 rounded-full bg-amber-400 ring-2 ring-white" />
+                                  )}
+                                  {remStatus.state === "future" && (
+                                    <span className="absolute -top-1 -right-1 flex h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
+                                  )}
+                                </button>
+                              );
+                            })()}
 
                             {nextStage ? (
                               <button
@@ -728,7 +852,18 @@ function LeadsPageContent() {
                   <th className="px-5 py-3.5">Stage</th>
                   <th className="px-5 py-3.5">Channel</th>
                   <th className="px-5 py-3.5">Notes &amp; Reminder</th>
-                  <th className="px-5 py-3.5">Created</th>
+                  <th
+                    className="px-5 py-3.5 cursor-pointer select-none hover:text-zinc-700 transition-colors"
+                    onClick={() => setSortOrder((p) => (p === "desc" ? "asc" : "desc"))}
+                    title={`Sort by Created Date (${sortOrder === "desc" ? "showing newest first" : "showing oldest first"})`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Created</span>
+                      <span className={`transition-transform text-xs font-bold ${sortOrder === "desc" ? "text-emerald-600" : "text-amber-600"}`}>
+                        {sortOrder === "desc" ? "↓" : "↑"}
+                      </span>
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
@@ -848,17 +983,54 @@ function LeadsPageContent() {
                               {deal.notes ? "Note" : "+ Note"}
                             </button>
 
-                            <button
-                              onClick={() => setReminderLead(deal)}
-                              className={`flex h-7 w-7 items-center justify-center rounded-lg border transition-all ${
-                                deal.reminderAt
-                                  ? "bg-emerald-500 text-white border-emerald-600 shadow-2xs hover:bg-emerald-600"
-                                  : "bg-zinc-50 text-zinc-400 border-zinc-200/60 hover:text-zinc-700 hover:bg-zinc-100"
-                              }`}
-                              title={deal.reminderAt ? `Reminder: ${new Date(deal.reminderAt).toLocaleString()}` : "Set reminder"}
-                            >
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                            </button>
+                            {(() => {
+                              const remStatus = getReminderStatus(deal.reminderAt);
+                              return (
+                                <button
+                                  onClick={() => setReminderLead(deal)}
+                                  className={`relative flex h-7 w-7 items-center justify-center rounded-lg border transition-all ${
+                                    remStatus.state === "overdue"
+                                      ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100 shadow-2xs"
+                                      : remStatus.state === "duesoon"
+                                      ? "bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100 shadow-2xs"
+                                      : remStatus.state === "today"
+                                      ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                                      : remStatus.state === "future"
+                                      ? "bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100 shadow-2xs"
+                                      : "bg-zinc-50 text-zinc-400 border-zinc-200/60 hover:text-zinc-700 hover:bg-zinc-100"
+                                  }`}
+                                  title={
+                                    remStatus.state === "overdue"
+                                      ? `Overdue (${remStatus.label}): ${remStatus.dateText}`
+                                      : remStatus.state === "duesoon" || remStatus.state === "today"
+                                      ? `Due today: ${remStatus.dateText}`
+                                      : remStatus.state === "future"
+                                      ? `Reminder: ${remStatus.dateText}`
+                                      : "Set reminder"
+                                  }
+                                  aria-label={deal.reminderAt ? `Reminder: ${remStatus.label}` : "Set reminder"}
+                                >
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                                  </svg>
+                                  {remStatus.state === "overdue" && (
+                                    <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600 ring-2 ring-white" />
+                                    </span>
+                                  )}
+                                  {remStatus.state === "duesoon" && (
+                                    <span className="absolute -top-1 -right-1 flex h-2 w-2 rounded-full bg-amber-500 ring-2 ring-white" />
+                                  )}
+                                  {remStatus.state === "today" && (
+                                    <span className="absolute -top-1 -right-1 flex h-2 w-2 rounded-full bg-amber-400 ring-2 ring-white" />
+                                  )}
+                                  {remStatus.state === "future" && (
+                                    <span className="absolute -top-1 -right-1 flex h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
+                                  )}
+                                </button>
+                              );
+                            })()}
                           </div>
                         </td>
 
@@ -923,23 +1095,44 @@ function LeadsPageContent() {
                   </svg>
                 </button>
               </div>
-              <div className="mt-3 flex gap-2">
-                <button
-                  onClick={() => snoozeReminder(alert.leadId)}
-                  className="flex-1 rounded-xl border border-zinc-200 py-2 text-xs font-bold text-zinc-600 hover:bg-zinc-50 transition-colors"
-                >
-                  ⏰ Snooze 10 min
-                </button>
-                <button
-                  onClick={() => {
-                    dismissReminder(alert.leadId);
-                    const lead = leads.find((l) => l.id === alert.leadId);
-                    if (lead) setEditingLead(lead);
-                  }}
-                  className="flex-1 rounded-xl bg-emerald-600 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition-colors"
-                >
-                  Open Lead
-                </button>
+              <div className="mt-3 flex items-center justify-between gap-1.5 flex-wrap pt-2 border-t border-zinc-100">
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] font-bold text-zinc-400">Snooze:</span>
+                  <button
+                    onClick={() => snoozeReminder(alert.leadId, 15)}
+                    className="rounded-lg border border-zinc-200 bg-zinc-50 px-2 py-1 text-[11px] font-bold text-zinc-700 hover:bg-zinc-100 transition-colors"
+                    title="Snooze for 15 minutes"
+                  >
+                    15m
+                  </button>
+                  <button
+                    onClick={() => snoozeReminder(alert.leadId, 60)}
+                    className="rounded-lg border border-zinc-200 bg-zinc-50 px-2 py-1 text-[11px] font-bold text-zinc-700 hover:bg-zinc-100 transition-colors"
+                    title="Snooze for 1 hour"
+                  >
+                    1h
+                  </button>
+                  <button
+                    onClick={() => snoozeReminder(alert.leadId, "tomorrow")}
+                    className="rounded-lg border border-zinc-200 bg-zinc-50 px-2 py-1 text-[11px] font-bold text-zinc-700 hover:bg-zinc-100 transition-colors"
+                    title="Snooze until tomorrow 9:00 AM"
+                  >
+                    Tomorrow
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => {
+                      dismissReminder(alert.leadId);
+                      const lead = leads.find((l) => l.id === alert.leadId);
+                      if (lead) setEditingLead(lead);
+                    }}
+                    className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-bold text-white hover:bg-emerald-700 shadow-2xs transition-colors"
+                  >
+                    Open Lead
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -951,10 +1144,15 @@ function LeadsPageContent() {
         <SetReminderModal
           leadId={reminderLead.id}
           leadName={reminderLead.name}
+          initialReminderAt={reminderLead.reminderAt}
+          initialNote={reminderLead.notes}
           onClose={() => setReminderLead(null)}
           onSaved={(reminderAt, note) => {
-            setLeads((prev) => prev.map((l) => l.id === reminderLead.id ? { ...l, notes: note, reminderAt } : l));
-            // Remove from fired set so it can fire when time comes
+            setLeads((prev) => prev.map((l) => (l.id === reminderLead.id ? { ...l, notes: note, reminderAt } : l)));
+            firedReminderIds.current.delete(reminderLead.id);
+          }}
+          onCleared={() => {
+            setLeads((prev) => prev.map((l) => (l.id === reminderLead.id ? { ...l, reminderAt: undefined } : l)));
             firedReminderIds.current.delete(reminderLead.id);
           }}
         />

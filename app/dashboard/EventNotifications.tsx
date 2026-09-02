@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { playReminderChime, sendBrowserNotification } from "@/lib/sound";
 
 type TaskType = "call" | "email" | "meeting" | "message";
 
@@ -99,6 +100,13 @@ export default function EventNotifications() {
     });
     if (triggered.length > 0) {
       persistNotified(triggered.map((t) => t.id));
+      playReminderChime();
+      triggered.forEach((t) => {
+        sendBrowserNotification(t.title, {
+          body: t.leadName || t.contact ? `For ${t.leadName || t.contact}` : "Task reminder is due.",
+        });
+      });
+
       setAlerts((prev) => {
         const existingIds = new Set(prev.map((t) => t.id));
         return [...prev, ...triggered.filter((t) => !existingIds.has(t.id))];
@@ -119,8 +127,8 @@ export default function EventNotifications() {
 
   useEffect(() => {
     loadTasks();
-    const tickInterval = setInterval(() => checkDue(tasksRef.current), 30_000);
-    const reloadInterval = setInterval(loadTasks, 5 * 60_000);
+    const tickInterval = setInterval(() => checkDue(tasksRef.current), 15_000);
+    const reloadInterval = setInterval(loadTasks, 3 * 60_000);
     return () => { clearInterval(tickInterval); clearInterval(reloadInterval); };
   }, [loadTasks, checkDue]);
 
@@ -133,6 +141,21 @@ export default function EventNotifications() {
     setAlerts((prev) => {
       const next = prev.filter((t) => t.id !== id);
       return next;
+    });
+  }
+
+  async function snooze(id: string, mins: number = 15) {
+    dismiss(id);
+    const newDueDate = new Date(Date.now() + mins * 60 * 1000).toISOString();
+    try {
+      const set = getNotifiedSet();
+      set.delete(id);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([...set]));
+    } catch {}
+    await fetch(`/api/tasks/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dueDate: newDueDate }),
     });
   }
 
@@ -231,7 +254,14 @@ export default function EventNotifications() {
             )}
 
             {/* Action buttons */}
-            <div className="flex gap-3">
+            <div className="flex gap-2">
+              <button
+                onClick={() => snooze(task.id, 15)}
+                className="rounded-2xl border border-zinc-200 px-3.5 py-3 text-sm font-semibold text-zinc-600 hover:bg-zinc-50 transition-colors"
+                title="Snooze for 15 minutes"
+              >
+                ⏰ Snooze
+              </button>
               <button
                 onClick={() => markDone(task.id)}
                 className={`flex-1 rounded-2xl py-3 text-sm font-bold text-white transition-colors shadow-sm ${
@@ -245,7 +275,7 @@ export default function EventNotifications() {
               </button>
               <button
                 onClick={() => dismiss(task.id)}
-                className="flex-1 rounded-2xl border border-zinc-200 py-3 text-sm font-semibold text-zinc-600 hover:bg-zinc-50 transition-colors"
+                className="rounded-2xl border border-zinc-200 px-3.5 py-3 text-sm font-semibold text-zinc-500 hover:bg-zinc-50 transition-colors"
               >
                 Dismiss
               </button>

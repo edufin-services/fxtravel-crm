@@ -103,6 +103,9 @@ const LeadSchema = new Schema({
   deletedAt: { type: String, default: null, index: true },
 });
 
+LeadSchema.index({ createdAt: -1 });
+LeadSchema.index({ ownerId: 1, createdAt: -1 });
+
 export const LeadModel = models.Lead ?? model("Lead", LeadSchema);
 
 // ── Branch / Vendor ───────────────────────────────────────────────────────

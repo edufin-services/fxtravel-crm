@@ -31,6 +31,10 @@ body {
   overflow-x: hidden;
 }
 
+body.modal-open {
+  overflow: hidden;
+}
+
 /* Thin, modern scrollbars */
 * {
   scrollbar-width: thin;

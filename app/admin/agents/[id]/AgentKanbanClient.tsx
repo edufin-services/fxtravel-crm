@@ -150,7 +150,7 @@ export default function AgentKanbanClient({ agent, initialLeads }: { agent: Agen
     });
     const data = await res.json();
     if (res.ok) {
-      setLeads((prev) => [...prev, data.lead]);
+      setLeads((prev) => [data.lead, ...prev]);
       setModalStage(null);
     }
     return data;
@@ -221,7 +221,7 @@ export default function AgentKanbanClient({ agent, initialLeads }: { agent: Agen
       }
 
       return matchChannel && matchService && matchDate;
-    });
+    }).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
   }, [leads, channelFilter, serviceFilter, datePreset, startDate, endDate]);
 
   return (
@@ -584,9 +584,14 @@ export default function AgentKanbanClient({ agent, initialLeads }: { agent: Agen
         <SetReminderModal
           leadId={reminderLead.id}
           leadName={reminderLead.name}
+          initialReminderAt={reminderLead.reminderAt}
+          initialNote={reminderLead.notes}
           onClose={() => setReminderLead(null)}
           onSaved={(reminderAt, note) => {
-            setLeads((prev) => prev.map((l) => l.id === reminderLead.id ? { ...l, notes: note, reminderAt } : l));
+            setLeads((prev) => prev.map((l) => (l.id === reminderLead.id ? { ...l, notes: note, reminderAt } : l)));
+          }}
+          onCleared={() => {
+            setLeads((prev) => prev.map((l) => (l.id === reminderLead.id ? { ...l, reminderAt: undefined } : l)));
           }}
         />
       )}

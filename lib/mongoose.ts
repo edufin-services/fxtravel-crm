@@ -27,7 +27,11 @@ const cache = g._mongoose;
 export async function dbConnect(): Promise<typeof mongoose> {
   applyDnsFix();
 
-  const uri = process.env.MONGODB_URI || "mongodb://localhost:27017/fxpertise";
+  let uri = process.env.MONGODB_URI || "mongodb://localhost:27017/fxpertise";
+  // Auto-correct Atlas connection strings if mongodb:// is used instead of mongodb+srv://
+  if (uri.startsWith("mongodb://") && uri.includes(".mongodb.net") && !uri.includes(",")) {
+    uri = uri.replace("mongodb://", "mongodb+srv://");
+  }
 
   if (cache.conn) return cache.conn;
   if (!cache.promise) {
@@ -38,6 +42,7 @@ export async function dbConnect(): Promise<typeof mongoose> {
       })
       .catch((err) => {
         cache.promise = null;
+        console.error("[dbConnect] MongoDB connection error:", err.message);
         throw err;
       });
   }

@@ -456,7 +456,7 @@ export function buildReportEmailHtml(data: ActivityReportData): string {
 
     <!-- Call to action -->
     <div style="text-align:center;padding:20px 0 10px 0;">
-      <a href="https://fxpertise.com/admin/leads" class="cta-btn">View All Leads in CRM &rarr;</a>
+      <a href="https://fxpertisetravel.vercel.app/admin/leads" class="cta-btn">View All Leads in CRM &rarr;</a>
     </div>
   </div>
 

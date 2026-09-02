@@ -47,9 +47,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid event object" }, { status: 400 });
     }
 
+    await dbConnect();
+    const adminSettings = await AdminSettingsModel.findOne({ id: "admin_settings" }).lean();
+
     const pageAccessToken =
       process.env.META_PAGE_ACCESS_TOKEN ||
       process.env.FACEBOOK_PAGE_ACCESS_TOKEN ||
+      (adminSettings as any)?.metaPageAccessToken ||
       "";
 
     const entries = Array.isArray(body.entry) ? body.entry : [];
@@ -70,23 +74,30 @@ export async function POST(request: NextRequest) {
         let leadName = "Meta Lead";
         let leadPhone = "";
         let leadEmail = "";
+        let leadCity = "";
         let leadPlatform = "Facebook";
+        let apiError = "";
+        const extraFormFields: string[] = [];
 
         // 1. If we have a Page Access Token, fetch lead details from Meta Graph API
         if (pageAccessToken) {
           try {
             const graphRes = await fetch(
-              `https://graph.facebook.com/v20.0/${leadgenId}?access_token=${pageAccessToken}`
+              `https://graph.facebook.com/v21.0/${leadgenId}?access_token=${pageAccessToken}`
             );
-            if (graphRes.ok) {
-              const leadData = await graphRes.json();
-              const fieldData = leadData.field_data || [];
+            const leadData = await graphRes.json().catch(() => null);
+
+            if (graphRes.ok && leadData) {
+              const fieldData: Array<{ name: string; values: string[] }> = Array.isArray(leadData.field_data)
+                ? leadData.field_data
+                : [];
 
               const extractedName = extractMetaField(fieldData, [
                 "full_name",
                 "name",
                 "first_name",
                 "customer_name",
+                "your_name",
               ]);
               const extractedPhone = extractMetaField(fieldData, [
                 "phone_number",
@@ -94,10 +105,16 @@ export async function POST(request: NextRequest) {
                 "phone",
                 "mobile_number",
                 "contact_number",
+                "mobile",
               ]);
               const extractedEmail = extractMetaField(fieldData, [
                 "email",
                 "email_address",
+              ]);
+              const extractedCity = extractMetaField(fieldData, [
+                "city",
+                "location",
+                "current_city",
               ]);
               const extractedPlatform = extractMetaField(fieldData, [
                 "platform",
@@ -107,15 +124,54 @@ export async function POST(request: NextRequest) {
               if (extractedName) leadName = extractedName;
               if (extractedPhone) leadPhone = extractedPhone;
               if (extractedEmail) leadEmail = extractedEmail;
+              if (extractedCity) leadCity = extractedCity;
               if (extractedPlatform) {
-                leadPlatform = extractedPlatform.toLowerCase().includes("ig") || extractedPlatform.toLowerCase().includes("instagram")
-                  ? "Instagram"
-                  : "Facebook";
+                leadPlatform =
+                  extractedPlatform.toLowerCase().includes("ig") ||
+                  extractedPlatform.toLowerCase().includes("instagram")
+                    ? "Instagram"
+                    : "Facebook";
               }
+
+              // Collect any custom questions from the lead form (destinations, travel dates, budget, etc.)
+              for (const field of fieldData) {
+                const normName = field.name?.toLowerCase().replace(/[\s_-]+/g, "");
+                const isStandardField = [
+                  "fullname",
+                  "name",
+                  "firstname",
+                  "customername",
+                  "yourname",
+                  "phonenumber",
+                  "whatsappnumber",
+                  "phone",
+                  "mobilenumber",
+                  "contactnumber",
+                  "mobile",
+                  "email",
+                  "emailaddress",
+                  "platform",
+                  "source",
+                  "city",
+                  "location",
+                  "currentcity",
+                ].includes(normName);
+
+                if (!isStandardField && Array.isArray(field.values) && field.values.length > 0) {
+                  extraFormFields.push(`${field.name}: ${field.values.join(", ")}`);
+                }
+              }
+            } else {
+              apiError = leadData?.error?.message || `HTTP ${graphRes.status}`;
+              console.error(`[Meta Webhook] Meta Graph API returned error for leadgen ${leadgenId}:`, apiError);
             }
-          } catch (err) {
-            console.error("Failed to query Meta Graph API for lead details:", err);
+          } catch (err: any) {
+            apiError = err?.message || "Failed to query Meta Graph API";
+            console.error("[Meta Webhook] Network exception querying Meta Graph API:", err);
           }
+        } else {
+          apiError = "META_PAGE_ACCESS_TOKEN is missing on server";
+          console.warn("[Meta Webhook] No page access token available to query lead details.");
         }
 
         // Clean phone number
@@ -125,8 +181,6 @@ export async function POST(request: NextRequest) {
         if (digits.length === 12 && digits.startsWith("91")) cleanPhone = digits.slice(2);
         else if (digits.length === 11 && digits.startsWith("0")) cleanPhone = digits.slice(1);
         else if (digits.length > 10) cleanPhone = digits.slice(-10);
-
-        await dbConnect();
 
         // Check for duplicate lead in active CRM
         if (cleanPhone && cleanPhone.length >= 7) {
@@ -162,16 +216,29 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        // Build informative notes
+        const noteLines: string[] = [
+          `Meta Lead Ads (Round-Robin to ${assignedOwnerName}) · Form ID: ${formId || "N/A"} · Leadgen ID: ${leadgenId}`,
+        ];
+        if (apiError) {
+          noteLines.push(`⚠️ Meta Lead Info Notice: ${apiError}`);
+          noteLines.push(`👉 Fix: Ensure a non-expired Page Access Token is configured in META_PAGE_ACCESS_TOKEN on Vercel.`);
+        }
+        if (extraFormFields.length > 0) {
+          noteLines.push(`📋 Form Answers:\n` + extraFormFields.map((f) => `• ${f}`).join("\n"));
+        }
+
         // Create lead in CRM Initial Stage for the assigned user
         const created = await createLead({
           ownerId: assignedOwnerId,
           name: leadName,
           phone: cleanPhone || rawPhone || "—",
           email: leadEmail,
+          city: leadCity || undefined,
           channel: leadPlatform === "Instagram" ? "Instagram" : "Facebook",
           stage: "Initial",
           value: 0,
-          notes: `Meta Lead Ads (Round-Robin to ${assignedOwnerName}) · Form ID: ${formId || "N/A"} · Leadgen ID: ${leadgenId}`,
+          notes: noteLines.join("\n\n"),
           services: [],
         });
 

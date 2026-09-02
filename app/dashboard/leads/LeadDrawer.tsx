@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { SERVICES, STAGES, type Channel, type Stage } from "@/lib/constants";
 import { formatRelativeTime } from "@/lib/format";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import SetReminderModal from "./SetReminderModal";
 
 export type LeadDocument = { name: string; url: string; uploadedAt: string };
@@ -253,6 +254,8 @@ export default function LeadDrawer({
   onThirdPaymentInvoicesChange: (docs: LeadDocument[]) => void;
   onVisaDocumentsChange: (docs: LeadDocument[]) => void;
 }) {
+  useBodyScrollLock();
+
   const [activeTab, setActiveTab] = useState<"main" | "statistics" | "media" | "tasks">("main");
 
   // ── Team members for agent assignment ────────────────────────────────────
@@ -483,6 +486,7 @@ export default function LeadDrawer({
   const [loading, setLoading] = useState(false);
   const [showStageConfirm, setShowStageConfirm] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
+  const [reminderAt, setReminderAt] = useState<string | undefined>(lead.reminderAt);
 
   // Refs
   const docInputRef = useRef<HTMLInputElement>(null);
@@ -806,6 +810,26 @@ export default function LeadDrawer({
               <div className="flex-1 min-w-0">
                 <p className="text-base font-black text-zinc-900 leading-tight truncate">{lead.name}</p>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setShowReminderModal(true)}
+                className={`relative flex h-8 w-8 items-center justify-center rounded-xl transition-all border shrink-0 ${
+                  reminderAt
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100 shadow-2xs"
+                    : "bg-zinc-50 text-zinc-400 border-zinc-200 hover:bg-zinc-100 hover:text-zinc-700"
+                }`}
+                title={reminderAt ? `Reminder active: ${new Date(reminderAt).toLocaleString()}` : "Set reminder"}
+                aria-label="Reminder"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={reminderAt ? "text-emerald-600" : "text-zinc-400"}>
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+                {reminderAt && (
+                  <span className="absolute -top-1 -right-1 flex h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
+                )}
+              </button>
+
               <button onClick={onClose} className="flex-none p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M6 18L18 6" strokeLinecap="round"/></svg>
               </button>
@@ -1288,9 +1312,17 @@ export default function LeadDrawer({
         <SetReminderModal
           leadId={lead.id}
           leadName={lead.name}
+          initialReminderAt={reminderAt}
+          initialNote={notes || lead.notes}
           onClose={() => setShowReminderModal(false)}
-          onSaved={(_reminderAt, note) => {
+          onSaved={(newReminderAt, note) => {
+            setReminderAt(newReminderAt);
             setNotes(note);
+            lead.reminderAt = newReminderAt;
+          }}
+          onCleared={() => {
+            setReminderAt(undefined);
+            lead.reminderAt = undefined;
           }}
         />
       )}

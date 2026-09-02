@@ -488,13 +488,13 @@ export async function deleteUser(id: string): Promise<void> {
 
 export async function getAllLeads(): Promise<Lead[]> {
   await dbConnect();
-  const docs = await LeadModel.find({ deletedAt: null });
+  const docs = await LeadModel.find({ deletedAt: null }).sort({ createdAt: -1 });
   return docs.map((d) => toPlain<Lead>(d));
 }
 
 export async function getLeadsByOwner(ownerId: string): Promise<Lead[]> {
   await dbConnect();
-  const docs = await LeadModel.find({ ownerId, deletedAt: null });
+  const docs = await LeadModel.find({ ownerId, deletedAt: null }).sort({ createdAt: -1 });
   return docs.map((d) => toPlain<Lead>(d));
 }
 
@@ -813,13 +813,13 @@ export async function restoreLead(id: string, ownerId: string): Promise<Lead | u
 
 export async function getDeletedLeads(): Promise<Lead[]> {
   await dbConnect();
-  const docs = await LeadModel.find({ $or: [{ deletedAt: { $ne: null } }, { stage: "Closed" }] });
+  const docs = await LeadModel.find({ $or: [{ deletedAt: { $ne: null } }, { stage: "Closed" }] }).sort({ createdAt: -1 });
   return docs.map((d) => toPlain<Lead>(d));
 }
 
 export async function getDeletedLeadsByOwner(ownerId: string): Promise<Lead[]> {
   await dbConnect();
-  const docs = await LeadModel.find({ ownerId, $or: [{ deletedAt: { $ne: null } }, { stage: "Closed" }] });
+  const docs = await LeadModel.find({ ownerId, $or: [{ deletedAt: { $ne: null } }, { stage: "Closed" }] }).sort({ createdAt: -1 });
   return docs.map((d) => toPlain<Lead>(d));
 }
 

@@ -445,9 +445,14 @@ export default function AdminLeadsClient({ initialLeads, agents }: { initialLead
         <SetReminderModal
           leadId={reminderLead.id}
           leadName={reminderLead.name}
+          initialReminderAt={reminderLead.reminderAt}
+          initialNote={reminderLead.notes}
           onClose={() => setReminderLead(null)}
           onSaved={(reminderAt, note) => {
-            setLeads((prev) => prev.map((l) => l.id === reminderLead.id ? { ...l, notes: note, reminderAt } : l));
+            setLeads((prev) => prev.map((l) => (l.id === reminderLead.id ? { ...l, notes: note, reminderAt } : l)));
+          }}
+          onCleared={() => {
+            setLeads((prev) => prev.map((l) => (l.id === reminderLead.id ? { ...l, reminderAt: undefined } : l)));
           }}
         />
       )}

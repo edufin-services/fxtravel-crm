@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
         "Address",
         "Area",
         "branch",
-      ]) || "Mumbai";
+      ]) || "";
 
     const state = extractField(data, ["state", "State", "Region", "Province"]);
 

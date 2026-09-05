@@ -69,7 +69,7 @@ const LeadSchema = new Schema({
   exchangeRate: { type: Number, default: 86.5 },
   sourceAmount: { type: Number, default: 0 },
   targetAmount: { type: Number, default: 0 },
-  city: { type: String, default: "Mumbai" },
+  city: { type: String, default: "" },
   fulfillmentType: { type: String, enum: ["doorstep", "branch_pickup"], default: "doorstep" },
   deliveryAddress: String,
   panNumber: String,

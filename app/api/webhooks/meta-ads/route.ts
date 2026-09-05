@@ -79,15 +79,34 @@ export async function POST(request: NextRequest) {
         let apiError = "";
         const extraFormFields: string[] = [];
 
+        let campaignName = "";
+        let adsetName = "";
+        let adName = "";
+
         // 1. If we have a Page Access Token, fetch lead details from Meta Graph API
         if (pageAccessToken) {
           try {
             const graphRes = await fetch(
-              `https://graph.facebook.com/v21.0/${leadgenId}?access_token=${pageAccessToken}`
+              `https://graph.facebook.com/v21.0/${leadgenId}?fields=id,created_time,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,field_data&access_token=${pageAccessToken}`
             );
             const leadData = await graphRes.json().catch(() => null);
 
             if (graphRes.ok && leadData) {
+              campaignName = leadData.campaign_name || "";
+              adsetName = leadData.adset_name || "";
+              adName = leadData.ad_name || "";
+
+              // If campaign name is not populated directly on leadgen, fetch via campaign_id
+              if (!campaignName && leadData.campaign_id) {
+                try {
+                  const campRes = await fetch(
+                    `https://graph.facebook.com/v21.0/${leadData.campaign_id}?fields=name&access_token=${pageAccessToken}`
+                  );
+                  const campData = await campRes.json().catch(() => null);
+                  if (campData?.name) campaignName = campData.name;
+                } catch {}
+              }
+
               const fieldData: Array<{ name: string; values: string[] }> = Array.isArray(leadData.field_data)
                 ? leadData.field_data
                 : [];
@@ -195,13 +214,64 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Determine lead owner using Round-Robin across active CRM users
+        // ── Executive Campaign Assignment ────────────────────────────────────
+        // Rule: Kolkata Campaign / City / Form -> Mouparna Banerjee
+        // Rule: Delhi NCR Campaign / City / Form -> Sheeba Birla
+        // Fallback: Round-Robin across registered active executives
+        const routingHaystack = [
+          campaignName,
+          adsetName,
+          adName,
+          leadCity,
+          formId,
+          ...extraFormFields,
+        ].join(" ").toLowerCase();
+
+        const isKolkata =
+          routingHaystack.includes("kolkata") ||
+          routingHaystack.includes("calcutta") ||
+          routingHaystack.includes("west bengal") ||
+          routingHaystack.includes(" wb ") ||
+          String(formId).includes("9031550");
+
+        const isDelhi =
+          routingHaystack.includes("delhi") ||
+          routingHaystack.includes("ncr") ||
+          routingHaystack.includes("gurgaon") ||
+          routingHaystack.includes("gurugram") ||
+          routingHaystack.includes("noida") ||
+          routingHaystack.includes("faridabad") ||
+          routingHaystack.includes("ghaziabad") ||
+          String(formId).includes("1058624");
+
         const users = await getAllUsers();
+        const mouparna = users.find(
+          (u) =>
+            u.email?.toLowerCase().includes("mouparna") ||
+            u.name?.toLowerCase().includes("mouparna")
+        );
+        const sheeba = users.find(
+          (u) =>
+            u.email?.toLowerCase().includes("sheeba") ||
+            u.name?.toLowerCase().includes("sheeba")
+        );
+
         let assignedOwnerId = "admin";
         let assignedOwnerName = "Admin";
+        let routingReason = "Default Admin";
 
-        if (users.length > 0) {
-          // Atomically increment round-robin counter
+        if (isKolkata && mouparna) {
+          assignedOwnerId = mouparna.id;
+          assignedOwnerName = mouparna.name;
+          routingReason = "Kolkata Campaign → Mouparna Banerjee";
+          if (!leadCity) leadCity = "Kolkata";
+        } else if (isDelhi && sheeba) {
+          assignedOwnerId = sheeba.id;
+          assignedOwnerName = sheeba.name;
+          routingReason = "Delhi NCR Campaign → Sheeba Birla";
+          if (!leadCity) leadCity = "Delhi NCR";
+        } else if (users.length > 0) {
+          // Atomically increment round-robin counter for non-campaign leads
           const settings = await AdminSettingsModel.findOneAndUpdate(
             { id: "admin_settings" },
             { $inc: { metaRoundRobinIndex: 1 } },
@@ -213,13 +283,28 @@ export async function POST(request: NextRequest) {
           if (assignedUser) {
             assignedOwnerId = assignedUser.id;
             assignedOwnerName = assignedUser.name;
+            routingReason = `Round-Robin (${assignedOwnerName})`;
           }
+        }
+
+        // Determine service category from adset
+        const leadServices: string[] = ["Tours & Packages"];
+        const lowerAdset = adsetName.toLowerCase();
+        if (lowerAdset.includes("international")) {
+          leadServices.unshift("International Tours");
+        } else if (lowerAdset.includes("domestic")) {
+          leadServices.unshift("Domestic Tours");
         }
 
         // Build informative notes
         const noteLines: string[] = [
-          `Meta Lead Ads (Round-Robin to ${assignedOwnerName}) · Form ID: ${formId || "N/A"} · Leadgen ID: ${leadgenId}`,
-        ];
+          `🎯 Campaign: ${campaignName || (isKolkata ? "Kolkata" : isDelhi ? "Delhi NCR leads" : "Meta Lead Ads")}`,
+          adsetName ? `📌 Adset: ${adsetName}` : "",
+          adName ? `📢 Ad: ${adName}` : "",
+          `👤 Assigned: ${assignedOwnerName} (${routingReason})`,
+          `Form ID: ${formId || "N/A"} · Leadgen ID: ${leadgenId}`,
+        ].filter(Boolean);
+
         if (apiError) {
           noteLines.push(`⚠️ Meta Lead Info Notice: ${apiError}`);
           noteLines.push(`👉 Fix: Ensure a non-expired Page Access Token is configured in META_PAGE_ACCESS_TOKEN on Vercel.`);
@@ -239,7 +324,8 @@ export async function POST(request: NextRequest) {
           stage: "Initial",
           value: 0,
           notes: noteLines.join("\n\n"),
-          services: [],
+          services: leadServices,
+          serviceType: leadServices[0],
         });
 
         results.push({

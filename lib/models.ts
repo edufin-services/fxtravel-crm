@@ -59,6 +59,7 @@ const LeadSchema = new Schema({
   phone: String,
   color: String,
   notes: String,
+  formNotes: { type: String, default: "" },
   reminderAt: String,
   services: [String],
 

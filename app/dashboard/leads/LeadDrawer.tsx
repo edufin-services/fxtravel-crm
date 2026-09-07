@@ -19,6 +19,7 @@ export type DrawerLead = {
   phone?: string;
   color?: string;
   notes?: string;
+  formNotes?: string;
   services?: string[];
   serviceType?: string;
   sourceCurrency?: string;
@@ -1024,6 +1025,59 @@ export default function LeadDrawer({
 
               <SectionHeader label="Documents" />
               <ArrayDocRow label="Upload Documents" docs={documents} uploading={uploadingDoc} inputRef={docInputRef} onUpload={handleUploadDoc} onDelete={handleDeleteDoc} />
+
+              {(() => {
+                const cleanedLines = lead.formNotes
+                  ? lead.formNotes
+                      .split("\n")
+                      .map((l) => l.trim())
+                      .filter((t) => {
+                        return (
+                          t &&
+                          !t.startsWith("🎯") &&
+                          !t.startsWith("📌") &&
+                          !t.startsWith("📢") &&
+                          !t.startsWith("👤") &&
+                          !t.startsWith("Campaign:") &&
+                          !t.startsWith("Adset:") &&
+                          !t.startsWith("Ad:") &&
+                          !t.startsWith("Assigned:") &&
+                          !t.startsWith("Form ID:") &&
+                          !t.includes("Leadgen ID:") &&
+                          !t.startsWith("Meta Lead Ads") &&
+                          !t.startsWith("📋 Form Answers:")
+                        );
+                      })
+                      .map((line) => {
+                        const clean = line.replace(/^[•\s*-]+/, "").trim();
+                        if (!clean.includes(":")) {
+                          return `• ${clean.replace(/_/g, " ")}`;
+                        }
+                        const colonIdx = clean.indexOf(":");
+                        const qRaw = clean.slice(0, colonIdx);
+                        const aRaw = clean.slice(colonIdx + 1);
+                        const qClean = qRaw.replace(/_/g, " ").replace(/[?:]+$/, "").trim();
+                        const aClean = aRaw.replace(/_/g, " ").trim();
+                        const qFormatted = qClean ? qClean.charAt(0).toUpperCase() + qClean.slice(1) : "";
+                        return `• ${qFormatted}?: ${aClean}`;
+                      })
+                  : [];
+
+                if (cleanedLines.length === 0) return null;
+
+                return (
+                  <>
+                    <SectionHeader label="Customer Form Answers" />
+                    <div className="px-5 py-2">
+                      <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3.5 text-xs text-zinc-800 font-sans leading-relaxed shadow-2xs space-y-1.5">
+                        {cleanedLines.map((line, i) => (
+                          <p key={i}>{line}</p>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
 
               <SectionHeader label="Notes" />
               <div className="px-5 py-2">

@@ -6,6 +6,7 @@ import { CHANNELS, SERVICES, STAGES, type Channel, type Stage } from "@/lib/cons
 import { formatRelativeTime } from "@/lib/format";
 import LeadDrawer, { type DrawerLead, type LeadDocument, type LeadUpdate } from "./LeadDrawer";
 import SetReminderModal from "./SetReminderModal";
+import ViewNoteModal, { getNoteStatus } from "./ViewNoteModal";
 import { playReminderChime, sendBrowserNotification } from "@/lib/sound";
 
 type Lead = DrawerLead & { value: number };
@@ -329,14 +330,22 @@ function LeadsPageContent() {
     return data;
   }
 
-  async function handleSaveNote(leadId: string, newNote: string) {
+  async function handleSaveNote(leadId: string, newNote: string, newFormNote?: string) {
+    const payload: Record<string, string> = { notes: newNote };
+    if (newFormNote !== undefined) payload.formNotes = newFormNote;
     const res = await fetch(`/api/leads/${leadId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ notes: newNote }),
+      body: JSON.stringify(payload),
     });
     if (res.ok) {
-      setLeads((prev) => prev.map((l) => l.id === leadId ? { ...l, notes: newNote } : l));
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadId
+            ? { ...l, notes: newNote, ...(newFormNote !== undefined ? { formNotes: newFormNote } : {}) }
+            : l
+        )
+      );
     }
   }
 
@@ -770,17 +779,23 @@ function LeadsPageContent() {
                           {/* Time + Note Popup Trigger Button */}
                           <div className="mt-3 flex items-center justify-between gap-2 pt-1">
                             <span className="text-[11px] text-zinc-400 font-medium">{formatRelativeTime(deal.createdAt)}</span>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setViewingNoteLead(deal); }}
-                              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
-                                deal.notes
-                                  ? "bg-amber-100/90 text-amber-900 border border-amber-300/80 hover:bg-amber-200 shadow-2xs"
-                                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 border border-zinc-200/60"
-                              }`}
-                            >
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 2 2h11a2 2 0 0 0 2-2v-5"/><path d="M17.5 2.5a2.121 2.121 0 0 1 3 3L12 14l-4 1 1-4 7.5-7.5z"/></svg>
-                              {deal.notes ? "View Note" : "+ Add Note"}
-                            </button>
+                            {(() => {
+                              const noteStatus = getNoteStatus(deal.notes, deal.formNotes);
+                              return (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setViewingNoteLead(deal); }}
+                                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
+                                    noteStatus.hasAnyNote
+                                      ? "bg-amber-100/90 text-amber-900 border border-amber-300/80 hover:bg-amber-200 shadow-2xs"
+                                      : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 border border-zinc-200/60"
+                                  }`}
+                                  title={noteStatus.hasAnyNote ? "View Note" : "Add note"}
+                                >
+                                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5"/><path d="M17.5 2.5a2.121 2.121 0 0 1 3 3L12 14l-4 1 1-4 7.5-7.5z"/></svg>
+                                  {noteStatus.kanbanLabel}
+                                </button>
+                              );
+                            })()}
                           </div>
 
                           {/* Footer: Set Reminder + Stage transition button */}
@@ -834,7 +849,7 @@ function LeadsPageContent() {
                                 }`}
                                 aria-label={`Move to ${nextStage}`}
                               >
-                                Move to {nextStage}
+                                Move Next
                                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round"/></svg>
                               </button>
                             ) : (
@@ -994,18 +1009,23 @@ function LeadsPageContent() {
                         {/* Notes & Reminder indicators */}
                         <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => setViewingNoteLead(deal)}
-                              className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
-                                deal.notes
-                                  ? "bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100"
-                                  : "bg-zinc-50 text-zinc-400 border border-zinc-200/60 hover:text-zinc-700 hover:bg-zinc-100"
-                              }`}
-                              title={deal.notes ?? "Add note"}
-                            >
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 2 2h11a2 2 0 0 0 2-2v-5"/><path d="M17.5 2.5a2.121 2.121 0 0 1 3 3L12 14l-4 1 1-4 7.5-7.5z"/></svg>
-                              {deal.notes ? "Note" : "+ Note"}
-                            </button>
+                            {(() => {
+                              const noteStatus = getNoteStatus(deal.notes, deal.formNotes);
+                              return (
+                                <button
+                                  onClick={() => setViewingNoteLead(deal)}
+                                  className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
+                                    noteStatus.hasAnyNote
+                                      ? "bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 shadow-2xs"
+                                      : "bg-zinc-50 text-zinc-400 border border-zinc-200/60 hover:text-zinc-700 hover:bg-zinc-100"
+                                  }`}
+                                  title={noteStatus.hasAnyNote ? "View Note" : "Add note"}
+                                >
+                                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 2 2h11a2 2 0 0 0 2-2v-5"/><path d="M17.5 2.5a2.121 2.121 0 0 1 3 3L12 14l-4 1 1-4 7.5-7.5z"/></svg>
+                                  {noteStatus.tableLabel}
+                                </button>
+                              );
+                            })()}
 
                             {(() => {
                               const remStatus = getReminderStatus(deal.reminderAt);
@@ -1355,63 +1375,7 @@ function ConfirmStageModal({
     </div>
   );
 }
-// ── View Note Modal ────────────────────────────────────────────────────────────
 
-function ViewNoteModal({
-  lead,
-  onClose,
-  onSaveNote,
-}: {
-  lead: DrawerLead;
-  onClose: () => void;
-  onSaveNote: (leadId: string, note: string) => Promise<void>;
-}) {
-  const [noteText, setNoteText] = useState(lead.notes || "");
-  const [saving, setSaving] = useState(false);
-
-  async function handleSave() {
-    setSaving(true);
-    await onSaveNote(lead.id, noteText);
-    setSaving(false);
-    onClose();
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl ring-1 ring-zinc-200/80" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-zinc-100">
-          <div>
-            <h2 className="text-base font-bold text-zinc-900">Notes for {lead.name}</h2>
-            <p className="text-xs text-zinc-400 mt-0.5">Enquiry notes &amp; remarks</p>
-          </div>
-          <button onClick={onClose} className="rounded-xl p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M6 18L18 6" strokeLinecap="round"/></svg>
-          </button>
-        </div>
-        <div className="px-6 py-5 space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">Enquiry Notes</label>
-            <textarea
-              value={noteText}
-              onChange={(e) => setNoteText(e.target.value)}
-              placeholder="Write any note for this enquiry..."
-              rows={5}
-              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 p-3.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100 transition-colors resize-none"
-            />
-          </div>
-          <div className="flex justify-end gap-3 pt-1">
-            <button onClick={onClose} className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-semibold text-zinc-600 hover:bg-zinc-50 transition-colors">
-              Cancel
-            </button>
-            <button onClick={handleSave} disabled={saving} className="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60 transition-colors">
-              {saving ? "Saving…" : "Save Note"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ── Add Deal Modal ─────────────────────────────────────────────────────────────
 

@@ -11,7 +11,7 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/leads/
   const { id } = await ctx.params;
   const body = await request.json().catch(() => null);
   const {
-    name, value, stage, email, phone, color, notes, services,
+    name, value, stage, email, phone, color, notes, formNotes, services,
     city, state, neetStatus, preferredCountry, preferredUniversity1, preferredUniversity2, assignAgent, ownerId,
     firstPayment, secondPayment, thirdPaymentAmount, otcAmount, totalServiceCharge,
     companyName, designation, yearlyVolume, rateOfferedCN, rateOfferedCard, rateOfferedTTDD, nextFollowUp, feedback, clientVisitStatus,
@@ -19,7 +19,7 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/leads/
 
   const updates: Partial<{
     name: string; value: number; stage: typeof STAGES[number];
-    email: string; phone: string; color: string; notes: string; reminderAt: string; services: string[];
+    email: string; phone: string; color: string; notes: string; formNotes: string; reminderAt: string; services: string[];
     city: string; state: string; neetStatus: string; preferredCountry: string;
     preferredUniversity1: string; preferredUniversity2: string; assignAgent: string; ownerId: string;
     firstPayment: number; secondPayment: number; thirdPaymentAmount: number;
@@ -56,6 +56,9 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/leads/
   }
   if (notes !== undefined) {
     updates.notes = typeof notes === "string" ? notes : "";
+  }
+  if (formNotes !== undefined) {
+    updates.formNotes = typeof formNotes === "string" ? formNotes : "";
   }
   if (services !== undefined && Array.isArray(services)) {
     updates.services = services;

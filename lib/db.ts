@@ -68,6 +68,7 @@ export type Lead = {
   phone?: string;
   color?: string;
   notes?: string;
+  formNotes?: string;
   services?: string[];
 
   // FXPertise Forex & Remittance Fields
@@ -592,7 +593,7 @@ export async function updateLead(
   id: string,
   ownerId: string,
   updates: Partial<Pick<Lead,
-    "stage" | "value" | "name" | "channel" | "email" | "phone" | "color" | "notes" |
+    "stage" | "value" | "name" | "channel" | "email" | "phone" | "color" | "notes" | "formNotes" |
     "city" | "state" | "neetStatus" | "preferredCountry" | "preferredUniversity1" | "preferredUniversity2" | "assignAgent" | "ownerId" |
     "assignedBranchId" | "assignedBranchName" |
     "firstPayment" | "secondPayment" | "thirdPaymentAmount" | "otcAmount" | "totalServiceCharge" |
@@ -686,7 +687,7 @@ export async function getLeadByIdAdmin(id: string): Promise<Lead | undefined> {
 export async function updateLeadAdmin(
   id: string,
   updates: Partial<Pick<Lead,
-    "ownerId" | "stage" | "value" | "name" | "channel" | "email" | "phone" | "color" | "notes" |
+    "ownerId" | "stage" | "value" | "name" | "channel" | "email" | "phone" | "color" | "notes" | "formNotes" |
     "city" | "state" | "neetStatus" | "preferredCountry" | "preferredUniversity1" | "preferredUniversity2" | "assignAgent" |
     "assignedBranchId" | "assignedBranchName" |
     "firstPayment" | "secondPayment" | "thirdPaymentAmount" | "otcAmount" | "totalServiceCharge" |

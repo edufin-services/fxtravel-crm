@@ -177,7 +177,10 @@ export async function POST(request: NextRequest) {
                 ].includes(normName);
 
                 if (!isStandardField && Array.isArray(field.values) && field.values.length > 0) {
-                  extraFormFields.push(`${field.name}: ${field.values.join(", ")}`);
+                  const cleanName = field.name.replace(/_/g, " ").replace(/[?:]+$/, "").trim();
+                  const qFormatted = cleanName ? cleanName.charAt(0).toUpperCase() + cleanName.slice(1) : cleanName;
+                  const cleanVal = field.values.join(", ").replace(/_/g, " ").trim();
+                  extraFormFields.push(`${qFormatted}?: ${cleanVal}`);
                 }
               }
             } else {
@@ -296,22 +299,10 @@ export async function POST(request: NextRequest) {
           leadServices.unshift("Domestic Tours");
         }
 
-        // Build informative notes
-        const noteLines: string[] = [
-          `🎯 Campaign: ${campaignName || (isKolkata ? "Kolkata" : isDelhi ? "Delhi NCR leads" : "Meta Lead Ads")}`,
-          adsetName ? `📌 Adset: ${adsetName}` : "",
-          adName ? `📢 Ad: ${adName}` : "",
-          `👤 Assigned: ${assignedOwnerName} (${routingReason})`,
-          `Form ID: ${formId || "N/A"} · Leadgen ID: ${leadgenId}`,
-        ].filter(Boolean);
-
-        if (apiError) {
-          noteLines.push(`⚠️ Meta Lead Info Notice: ${apiError}`);
-          noteLines.push(`👉 Fix: Ensure a non-expired Page Access Token is configured in META_PAGE_ACCESS_TOKEN on Vercel.`);
-        }
-        if (extraFormFields.length > 0) {
-          noteLines.push(`📋 Form Answers:\n` + extraFormFields.map((f) => `• ${f}`).join("\n"));
-        }
+        // Keep ONLY customer form answers (no campaign, adset, ad, assigned, or form ID metadata)
+        const formAnswers = extraFormFields.length > 0
+          ? extraFormFields.map((f) => `• ${f}`).join("\n")
+          : "";
 
         // Create lead in CRM Initial Stage for the assigned user
         const created = await createLead({
@@ -323,7 +314,8 @@ export async function POST(request: NextRequest) {
           channel: leadPlatform === "Instagram" ? "Instagram" : "Facebook",
           stage: "Initial",
           value: 0,
-          notes: noteLines.join("\n\n"),
+          notes: "",
+          formNotes: formAnswers,
           services: leadServices,
           serviceType: leadServices[0],
         });

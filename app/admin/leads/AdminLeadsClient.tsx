@@ -2,13 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CHANNELS, SERVICES, STAGES, type Stage } from "@/lib/constants";
+import { CHANNELS, SERVICES, STAGES, type Channel, type Stage } from "@/lib/constants";
 import { formatRelativeTime } from "@/lib/format";
 import { SearchIcon } from "@/app/dashboard/icons";
 import LeadDrawer, { type DrawerLead } from "@/app/dashboard/leads/LeadDrawer";
 import SetReminderModal from "@/app/dashboard/leads/SetReminderModal";
 
-type Lead = DrawerLead & { value: number; ownerId: string };
+type Lead = DrawerLead & {
+  value: number;
+  ownerId: string;
+  assignedBranchName?: string;
+  assignedBranchId?: string;
+};
 type Agent = { id: string; name: string; email: string; company: string };
 
 const STAGE_COLORS: Record<string, string> = {
@@ -68,6 +73,94 @@ const channelPill: Record<string, string> = {
   "Referral/Others": "bg-amber-50 text-amber-700 border-amber-200",
 };
 
+const GRADIENTS: Record<string, string> = {
+  A:"from-rose-400 to-rose-600",B:"from-pink-400 to-pink-600",C:"from-fuchsia-400 to-fuchsia-600",
+  D:"from-violet-400 to-violet-600",E:"from-indigo-400 to-indigo-600",F:"from-blue-400 to-blue-600",
+  G:"from-sky-400 to-sky-600",H:"from-cyan-400 to-cyan-600",I:"from-teal-400 to-teal-600",
+  J:"from-emerald-400 to-emerald-600",K:"from-green-400 to-green-600",L:"from-lime-400 to-lime-600",
+  M:"from-amber-400 to-amber-600",N:"from-orange-400 to-orange-600",O:"from-red-400 to-red-600",
+  P:"from-rose-400 to-rose-600",Q:"from-purple-400 to-purple-600",R:"from-blue-400 to-blue-600",
+  S:"from-emerald-400 to-emerald-600",T:"from-teal-400 to-teal-600",U:"from-cyan-400 to-cyan-600",
+  V:"from-violet-400 to-violet-600",W:"from-pink-400 to-pink-600",X:"from-indigo-400 to-indigo-600",
+  Y:"from-amber-400 to-amber-600",Z:"from-red-400 to-red-600",
+};
+
+function initials(name: string) {
+  return name.split(" ").slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?";
+}
+
+function grad(name: string) {
+  const k = (name[0] ?? "A").toUpperCase();
+  return GRADIENTS[k] ?? "from-zinc-400 to-zinc-600";
+}
+
+const COLOR_AVATAR_GRADIENTS: Record<string, string> = {
+  sky: "from-sky-400 to-sky-600",
+  emerald: "from-emerald-400 to-emerald-600",
+  amber: "from-amber-400 to-amber-600",
+  violet: "from-violet-400 to-violet-600",
+  rose: "from-rose-400 to-rose-600",
+  orange: "from-orange-400 to-orange-600",
+};
+
+function getReminderStatus(reminderAt?: string | null): {
+  state: "none" | "overdue" | "duesoon" | "today" | "future";
+  label: string;
+  relativeText: string;
+  dateText: string;
+} {
+  if (!reminderAt) {
+    return { state: "none", label: "Set reminder", relativeText: "", dateText: "" };
+  }
+  const fireTime = new Date(reminderAt).getTime();
+  if (isNaN(fireTime)) {
+    return { state: "none", label: "Set reminder", relativeText: "", dateText: "" };
+  }
+  const now = Date.now();
+  const diffMs = fireTime - now;
+
+  const dateObj = new Date(reminderAt);
+  const dateText = dateObj.toLocaleDateString("en-IN", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  const isToday =
+    dateObj.getDate() === new Date().getDate() &&
+    dateObj.getMonth() === new Date().getMonth() &&
+    dateObj.getFullYear() === new Date().getFullYear();
+
+  if (diffMs <= 0) {
+    const pastMinutes = Math.floor(Math.abs(diffMs) / (60 * 1000));
+    const overdueText =
+      pastMinutes < 1
+        ? "Due now"
+        : pastMinutes < 60
+        ? `${pastMinutes}m overdue`
+        : pastMinutes < 1440
+        ? `${Math.floor(pastMinutes / 60)}h overdue`
+        : `${Math.floor(pastMinutes / 1440)}d overdue`;
+    return { state: "overdue", label: overdueText, relativeText: overdueText, dateText };
+  }
+
+  const inMinutes = Math.floor(diffMs / (60 * 1000));
+  if (inMinutes <= 60) {
+    return { state: "duesoon", label: `Due in ${inMinutes}m`, relativeText: `In ${inMinutes}m`, dateText };
+  }
+
+  if (isToday) {
+    const timeOnly = dateObj.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
+    return { state: "today", label: `Today ${timeOnly}`, relativeText: `Today ${timeOnly}`, dateText };
+  }
+
+  const shortDate = dateObj.toLocaleDateString("en-IN", { month: "short", day: "numeric" });
+  const timeOnly = dateObj.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
+  return { state: "future", label: `${shortDate}, ${timeOnly}`, relativeText: `${shortDate}, ${timeOnly}`, dateText };
+}
+
 function fmt(v: number) {
   if (v >= 1_00_00_000) return `₹${(v / 1_00_00_000).toFixed(1)}Cr`;
   if (v >= 1_00_000) return `₹${(v / 1_00_000).toFixed(1)}L`;
@@ -75,10 +168,19 @@ function fmt(v: number) {
   return `₹${v}`;
 }
 
-export default function AdminLeadsClient({ initialLeads, agents }: { initialLeads: Lead[]; agents: Agent[] }) {
+export default function AdminLeadsClient({
+  initialLeads,
+  agents,
+  branchLocations = [],
+}: {
+  initialLeads: Lead[];
+  agents: Agent[];
+  branchLocations?: string[];
+}) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = useState<"kanban" | "table">("kanban");
+  const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
 
   useEffect(() => {
     try {
@@ -100,42 +202,224 @@ export default function AdminLeadsClient({ initialLeads, agents }: { initialLead
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<Stage | null>(null);
   const [reminderLead, setReminderLead] = useState<Lead | null>(null);
+  const [viewingNoteLead, setViewingNoteLead] = useState<Lead | null>(null);
+
+  const searchParams = useSearchParams();
+  const initialLocation = searchParams?.get("location") || "All Locations";
+
+  const [userFilter, setUserFilter] = useState<string>("All Users");
+  const [stageFilter, setStageFilter] = useState<string>("All Stages");
+  const [channelFilter, setChannelFilter] = useState<Channel | "All">("All");
+  const [serviceFilter, setServiceFilter] = useState<string>("All Services");
+  const [locationFilter, setLocationFilter] = useState<string>(initialLocation);
+  const [datePreset, setDatePreset] = useState<string>("All Dates");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
 
   const agentMap = useMemo(() => Object.fromEntries(agents.map((a) => [a.id, a.name])), [agents]);
 
+  const availableLocations = useMemo(() => {
+    const locSet = new Set<string>();
+    branchLocations.forEach((loc) => {
+      if (loc && loc.trim()) locSet.add(loc.trim());
+    });
+    leads.forEach((l) => {
+      if (l.city && l.city.trim()) {
+        locSet.add(l.city.trim());
+      }
+    });
+    return Array.from(locSet).sort((a, b) => a.localeCompare(b));
+  }, [branchLocations, leads]);
+
+  const locationCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      unspecified: 0,
+    };
+    leads.forEach((l) => {
+      const c = l.city?.trim();
+      if (!c && !l.assignedBranchName) {
+        counts.unspecified = (counts.unspecified || 0) + 1;
+      } else if (c) {
+        counts[c] = (counts[c] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [leads]);
+
   const filteredLeads = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const sorted = [...leads].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    if (!q) return sorted;
-    return sorted.filter((l) =>
-      l.name.toLowerCase().includes(q) ||
-      (l.phone ?? "").includes(q) ||
-      (l.email ?? "").toLowerCase().includes(q) ||
-      l.stage.toLowerCase().includes(q) ||
-      (agentMap[l.ownerId] ?? "").toLowerCase().includes(q)
-    );
-  }, [leads, query, agentMap]);
+    return leads
+      .filter((l) => {
+        // Query search
+        if (q) {
+          const matchQuery =
+            l.name.toLowerCase().includes(q) ||
+            (l.phone ?? "").includes(q) ||
+            (l.email ?? "").toLowerCase().includes(q) ||
+            l.stage.toLowerCase().includes(q) ||
+            (agentMap[l.ownerId] ?? "").toLowerCase().includes(q) ||
+            (l.city ?? "").toLowerCase().includes(q) ||
+            (l.assignedBranchName ?? "").toLowerCase().includes(q);
+          if (!matchQuery) return false;
+        }
+
+        // User / Agent Filter
+        if (userFilter !== "All Users" && l.ownerId !== userFilter) {
+          return false;
+        }
+
+        // Stage Filter
+        if (stageFilter !== "All Stages" && l.stage !== stageFilter) {
+          return false;
+        }
+
+        // Location Filter
+        if (locationFilter !== "All Locations") {
+          if (locationFilter === "Unspecified / No Location") {
+            if (l.city?.trim() || l.assignedBranchName?.trim()) return false;
+          } else {
+            const locLow = locationFilter.toLowerCase();
+            const cityMatch = (l.city ?? "").trim().toLowerCase() === locLow;
+            const branchMatch = (l.assignedBranchName ?? "").toLowerCase().includes(locLow);
+            if (!cityMatch && !branchMatch) return false;
+          }
+        }
+
+        // Channel Filter
+        if (channelFilter !== "All" && l.channel !== channelFilter) {
+          return false;
+        }
+
+        // Service Filter
+        if (serviceFilter !== "All Services") {
+          const matchService =
+            (l.services && l.services.includes(serviceFilter)) ||
+            l.serviceType === serviceFilter;
+          if (!matchService) return false;
+        }
+
+        // Date Filter
+        if (datePreset !== "All Dates") {
+          const leadTime = new Date(l.createdAt).getTime();
+          const now = new Date();
+
+          if (datePreset === "Today") {
+            const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+            if (leadTime < startOfToday) return false;
+          } else if (datePreset === "Last 7 Days") {
+            const d = new Date();
+            d.setDate(d.getDate() - 7);
+            if (leadTime < d.getTime()) return false;
+          } else if (datePreset === "Last 30 Days") {
+            const d = new Date();
+            d.setDate(d.getDate() - 30);
+            if (leadTime < d.getTime()) return false;
+          } else if (datePreset === "Custom Range") {
+            if (startDate) {
+              const start = new Date(startDate).getTime();
+              if (leadTime < start) return false;
+            }
+            if (endDate) {
+              const end = new Date(endDate);
+              end.setHours(23, 59, 59, 999);
+              if (leadTime > end.getTime()) return false;
+            }
+          }
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        const timeA = new Date(a.createdAt || 0).getTime();
+        const timeB = new Date(b.createdAt || 0).getTime();
+        return sortOrder === "desc" ? timeB - timeA : timeA - timeB;
+      });
+  }, [
+    leads,
+    query,
+    agentMap,
+    userFilter,
+    stageFilter,
+    locationFilter,
+    channelFilter,
+    serviceFilter,
+    datePreset,
+    startDate,
+    endDate,
+    sortOrder,
+  ]);
 
   const totalValue = leads.reduce((s, l) => s + (l.value ?? 0), 0);
+  const filteredTotalValue = filteredLeads.reduce((s, l) => s + (l.value ?? 0), 0);
+  const confirmedCount = leads.filter((l) => l.stage === "Confirmed").length;
+  const isFiltered =
+    Boolean(query.trim()) ||
+    userFilter !== "All Users" ||
+    stageFilter !== "All Stages" ||
+    channelFilter !== "All" ||
+    serviceFilter !== "All Services" ||
+    locationFilter !== "All Locations" ||
+    datePreset !== "All Dates";
 
-  const handleDrop = async (toStage: Stage) => {
-    if (!draggingId) return;
-    const targetLead = leads.find((l) => l.id === draggingId);
-    if (!targetLead || targetLead.stage === toStage) {
-      setDraggingId(null);
-      setDragOverStage(null);
+  async function handleSaveNote(leadId: string, note: string) {
+    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, notes: note } : l)));
+    if (editingLead && editingLead.id === leadId) {
+      setEditingLead((prev) => (prev ? { ...prev, notes: note } : null));
+    }
+    await fetch(`/api/admin/leads/${leadId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes: note }),
+    });
+  }
+
+  const [pendingStage, setPendingStage] = useState<{ id: string; from: Stage; to: Stage } | null>(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+
+  const triggerStageChange = (id: string, toStage: Stage) => {
+    const targetLead = leads.find((l) => l.id === id);
+    if (!targetLead || targetLead.stage === toStage) return;
+
+    if (toStage === "Confirmed") {
+      setPendingStage({ id, from: targetLead.stage, to: toStage });
       return;
     }
 
-    setLeads((prev) => prev.map((l) => l.id === draggingId ? { ...l, stage: toStage } : l));
-    setDraggingId(null);
-    setDragOverStage(null);
-
-    await fetch(`/api/admin/leads/${draggingId}`, {
+    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, stage: toStage } : l)));
+    fetch(`/api/admin/leads/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ stage: toStage }),
     });
+  };
+
+  const handleDrop = async (toStage: Stage) => {
+    if (!draggingId) return;
+    const id = draggingId;
+    setDraggingId(null);
+    setDragOverStage(null);
+    triggerStageChange(id, toStage);
+  };
+
+  const confirmStageChange = async (revenue?: number) => {
+    if (!pendingStage) return;
+    setConfirmLoading(true);
+    const payload: { stage: Stage; value?: number } = { stage: pendingStage.to };
+    if (pendingStage.to === "Confirmed" && typeof revenue === "number") {
+      payload.value = revenue;
+    }
+    const res = await fetch(`/api/admin/leads/${pendingStage.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const body = await res.json();
+    setConfirmLoading(false);
+    setPendingStage(null);
+    if (res.ok && body.lead) {
+      setLeads((prev) => prev.map((l) => (l.id === body.lead.id ? { ...l, ...body.lead } : l)));
+      setEditingLead((prev) => (prev?.id === body.lead.id ? { ...prev, ...body.lead } : prev));
+    }
   };
 
   async function handleUpdateLead(data: any) {
@@ -172,7 +456,8 @@ export default function AdminLeadsClient({ initialLeads, agents }: { initialLead
         <div>
           <h1 className="text-2xl font-black text-zinc-900 tracking-tight">All Leads</h1>
           <p className="mt-0.5 text-sm text-zinc-400">
-            {leads.length} leads across all users &middot; Pipeline: {fmt(totalValue)}
+            {isFiltered ? `${filteredLeads.length} of ${leads.length} leads` : `${leads.length} leads`}
+            {locationFilter !== "All Locations" ? ` · 📍 ${locationFilter}` : " across all users"} &middot; Pipeline: {fmt(isFiltered ? filteredTotalValue : totalValue)}
           </p>
         </div>
 
@@ -201,16 +486,187 @@ export default function AdminLeadsClient({ initialLeads, agents }: { initialLead
         </div>
       </div>
 
-      {/* Search Input */}
-      <div className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-zinc-400 shadow-sm max-w-sm">
-        <SearchIcon />
-        <input
-          type="text"
-          placeholder="Search leads by name, phone, stage, or user..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="w-full bg-transparent text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none"
-        />
+      {/* ── Filters Bar ──────────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Search Input */}
+          <div className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-zinc-400 shadow-2xs w-64 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-100 transition-all">
+            <SearchIcon />
+            <input
+              type="text"
+              placeholder="Search leads by name, phone, etc..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="w-full bg-transparent text-xs font-semibold text-zinc-700 placeholder:text-zinc-400 focus:outline-none"
+            />
+            {query && (
+              <button onClick={() => setQuery("")} className="text-zinc-400 hover:text-zinc-600 transition-colors" title="Clear search">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            )}
+          </div>
+
+          {/* User / Agent Filter */}
+          <div className="relative">
+            <select
+              value={userFilter}
+              onChange={(e) => setUserFilter(e.target.value)}
+              className="appearance-none rounded-xl border border-zinc-200 bg-white pl-3.5 pr-8 py-2 text-xs font-bold text-zinc-700 shadow-2xs hover:border-zinc-300 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 transition-all cursor-pointer"
+            >
+              <option value="All Users">All Users</option>
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+          </div>
+
+          {/* Stage Filter */}
+          <div className="relative">
+            <select
+              value={stageFilter}
+              onChange={(e) => setStageFilter(e.target.value)}
+              className="appearance-none rounded-xl border border-zinc-200 bg-white pl-3.5 pr-8 py-2 text-xs font-bold text-zinc-700 shadow-2xs hover:border-zinc-300 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 transition-all cursor-pointer"
+            >
+              <option value="All Stages">All Stages</option>
+              {STAGES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+          </div>
+
+          {/* Service Filter */}
+          <div className="relative">
+            <select
+              value={serviceFilter}
+              onChange={(e) => setServiceFilter(e.target.value)}
+              className="appearance-none rounded-xl border border-zinc-200 bg-white pl-3.5 pr-8 py-2 text-xs font-bold text-zinc-700 shadow-2xs hover:border-zinc-300 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 transition-all cursor-pointer"
+            >
+              <option value="All Services">All Services</option>
+              {SERVICES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+          </div>
+
+          {/* Location Filter */}
+          <div className="relative">
+            <select
+              value={locationFilter}
+              onChange={(e) => setLocationFilter(e.target.value)}
+              className="appearance-none rounded-xl border border-zinc-200 bg-white pl-3.5 pr-8 py-2 text-xs font-bold text-zinc-700 shadow-2xs hover:border-zinc-300 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 transition-all cursor-pointer"
+            >
+              <option value="All Locations">All Locations</option>
+              {availableLocations.map((loc) => {
+                const count = locationCounts[loc] || 0;
+                return (
+                  <option key={loc} value={loc}>
+                    {loc} {count > 0 ? `(${count})` : ""}
+                  </option>
+                );
+              })}
+              {locationCounts.unspecified > 0 && (
+                <option value="Unspecified / No Location">
+                  Unspecified ({locationCounts.unspecified})
+                </option>
+              )}
+            </select>
+            <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+          </div>
+
+          {/* Reset Filters button if any filter is active */}
+          {isFiltered && (
+            <button
+              onClick={() => {
+                setQuery("");
+                setUserFilter("All Users");
+                setStageFilter("All Stages");
+                setServiceFilter("All Services");
+                setLocationFilter("All Locations");
+                setChannelFilter("All");
+                setDatePreset("All Dates");
+                setStartDate("");
+                setEndDate("");
+              }}
+              className="flex items-center gap-1 rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-bold text-zinc-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50/50 shadow-2xs transition-all cursor-pointer"
+              title="Reset all filters"
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              Reset
+            </button>
+          )}
+
+          {/* Date Filter */}
+          <div className="flex items-center gap-1.5">
+            <div className="relative">
+              <select
+                value={datePreset}
+                onChange={(e) => setDatePreset(e.target.value)}
+                className="appearance-none rounded-xl border border-zinc-200 bg-white pl-3.5 pr-8 py-2 text-xs font-bold text-zinc-700 shadow-2xs hover:border-zinc-300 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 transition-all cursor-pointer"
+              >
+                <option value="All Dates">All Time</option>
+                <option value="Today">Today</option>
+                <option value="Last 7 Days">Last 7 Days</option>
+                <option value="Last 30 Days">Last 30 Days</option>
+                <option value="Custom Range">Custom Range</option>
+              </select>
+              <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </div>
+            </div>
+
+            {datePreset === "Custom Range" && (
+              <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-zinc-200 shadow-2xs animate-fadeIn">
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="rounded-lg border border-zinc-200 px-2 py-1 text-xs font-semibold text-zinc-700 focus:outline-none focus:border-emerald-500"
+                />
+                <span className="text-xs text-zinc-400 font-bold">to</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="rounded-lg border border-zinc-200 px-2 py-1 text-xs font-semibold text-zinc-700 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Channel Filters */}
+          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-zinc-200 shadow-2xs">
+            <button
+              onClick={() => setChannelFilter("All")}
+              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                channelFilter === "All" ? "bg-zinc-900 text-white shadow-2xs" : "text-zinc-500 hover:text-zinc-800"
+              }`}
+            >
+              All
+            </button>
+            {CHANNELS.map((c) => (
+              <button
+                key={c}
+                onClick={() => setChannelFilter(channelFilter === c ? "All" : c)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                  channelFilter === c ? "bg-zinc-900 text-white shadow-2xs" : "text-zinc-500 hover:text-zinc-800"
+                }`}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* ── KANBAN VIEW ────────────────────────────────────────────────────────── */}
@@ -286,11 +742,29 @@ export default function AdminLeadsClient({ initialLeads, agents }: { initialLead
                             </div>
                           )}
 
-                          {/* Branch Badge */}
-                          <div className="mt-2 flex items-center gap-1.5">
+                          {/* Revenue */}
+                          {deal.value > 0 && (
+                            <div className="mt-2 flex items-center">
+                              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 border border-emerald-300/80 px-2 py-0.5 text-xs font-black text-emerald-800 shadow-2xs">
+                                <span>₹</span>{deal.value.toLocaleString("en-IN")}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* User & Location Badges */}
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
                             <span className="rounded-md bg-violet-50 border border-violet-200 px-2 py-0.5 text-[10px] font-bold text-violet-700">
                               {assignedName}
                             </span>
+                            {(deal.city || deal.assignedBranchName) && (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 border border-amber-200/80 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" strokeLinecap="round" strokeLinejoin="round"/>
+                                  <circle cx="12" cy="10" r="3" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                                {deal.city || deal.assignedBranchName}
+                              </span>
+                            )}
                           </div>
 
                           {/* Services */}
@@ -336,7 +810,7 @@ export default function AdminLeadsClient({ initialLeads, agents }: { initialLead
 
                             {nextStage ? (
                               <button
-                                onClick={(e) => { e.stopPropagation(); handleDrop(nextStage); }}
+                                onClick={(e) => { e.stopPropagation(); triggerStageChange(deal.id, nextStage); }}
                                 className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-extrabold transition-all shadow-xs hover:shadow-md ${
                                   nextMeta ? `${nextMeta.badge} hover:opacity-95` : "bg-zinc-900 text-white"
                                 }`}
@@ -371,73 +845,227 @@ export default function AdminLeadsClient({ initialLeads, agents }: { initialLead
         </div>
       ) : (
         /* ── TABLE / LIST VIEW ───────────────────────────────────────────────── */
-        <div className="rounded-2xl border border-zinc-200 bg-white overflow-hidden shadow-sm">
+        <div className="rounded-2xl border border-zinc-200 bg-white overflow-hidden shadow-xs">
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead>
-                <tr className="border-b border-zinc-100 bg-zinc-50/80">
-                  <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Lead</th>
-                  <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Assigned To</th>
-                  <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Stage</th>
-                  <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Channel</th>
-                  <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-zinc-400 text-right">Value</th>
-                  <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Created</th>
-                  <th className="px-5 py-3 w-32" />
+                <tr className="border-b border-zinc-100 bg-zinc-50/80 text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                  <th className="px-5 py-3.5">Lead Name</th>
+                  <th className="px-5 py-3.5">Services</th>
+                  <th className="px-5 py-3.5">Stage</th>
+                  <th className="px-5 py-3.5">Channel</th>
+                  <th className="px-5 py-3.5">Notes &amp; Reminder</th>
+                  <th
+                    className="px-5 py-3.5 cursor-pointer select-none hover:text-zinc-700 transition-colors"
+                    onClick={() => setSortOrder((p) => (p === "desc" ? "asc" : "desc"))}
+                    title={`Sort by Created Date (${sortOrder === "desc" ? "showing newest first" : "showing oldest first"})`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Created</span>
+                      <span className={`transition-transform text-xs font-bold ${sortOrder === "desc" ? "text-emerald-600" : "text-amber-600"}`}>
+                        {sortOrder === "desc" ? "↓" : "↑"}
+                      </span>
+                    </div>
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-50">
+              <tbody className="divide-y divide-zinc-100">
                 {filteredLeads.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-5 py-14 text-center text-sm text-zinc-400">
-                      {leads.length === 0 ? "No leads yet" : "No leads match your search"}
+                    <td colSpan={6} className="px-5 py-16 text-center text-sm text-zinc-400">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <div className="h-10 w-10 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-400">
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35" strokeLinecap="round"/></svg>
+                        </div>
+                        <p className="font-semibold text-zinc-600">No enquiries found</p>
+                        <p className="text-xs text-zinc-400">Try changing your search terms or filters</p>
+                      </div>
                     </td>
                   </tr>
                 ) : (
-                  filteredLeads.map((lead) => (
-                    <tr key={lead.id} className={`transition-colors cursor-pointer ${tableRowBg(lead.color)}`} onClick={() => setEditingLead(lead)}>
+                  filteredLeads.map((deal) => (
+                    <tr
+                      key={deal.id}
+                      onClick={() => setEditingLead(deal)}
+                      className={`transition-colors cursor-pointer group ${tableRowBg(deal.color)}`}
+                    >
+                      {/* Lead Name with avatar and contact number right below name */}
                       <td className="px-5 py-3.5">
-                        <p className="font-semibold text-zinc-900 leading-tight">{lead.name}</p>
-                        {lead.phone && <p className="text-xs text-zinc-400 mt-0.5">{lead.phone}</p>}
+                        <div className="flex items-center gap-3">
+                          <div className={`h-9 w-9 rounded-full bg-gradient-to-br ${deal.color && COLOR_AVATAR_GRADIENTS[deal.color] ? COLOR_AVATAR_GRADIENTS[deal.color] : grad(deal.name)} flex items-center justify-center text-white text-xs font-black shrink-0 shadow-2xs`}>
+                            {initials(deal.name)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-extrabold text-zinc-900 leading-tight group-hover:text-emerald-700 transition-colors text-sm">
+                              {deal.name}
+                            </p>
+                            {deal.phone ? (
+                              <p className="text-xs text-zinc-500 font-medium mt-0.5 tracking-tight">
+                                {deal.phone}
+                              </p>
+                            ) : deal.email ? (
+                              <p className="text-xs text-zinc-400 truncate max-w-[180px] mt-0.5">{deal.email}</p>
+                            ) : null}
+                            <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                              <span className="inline-flex items-center gap-1 rounded bg-zinc-100 text-[10px] font-semibold text-zinc-600 px-1.5 py-0.5">
+                                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                {agentMap[deal.ownerId] ?? deal.assignAgent ?? "Unassigned"}
+                              </span>
+                              {(deal.city || deal.assignedBranchName) && (
+                                <span className="inline-flex items-center gap-1 rounded bg-amber-50 border border-amber-200/70 text-[10px] font-bold text-amber-800 px-1.5 py-0.5">
+                                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" strokeLinecap="round" strokeLinejoin="round"/><circle cx="12" cy="10" r="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                  {deal.city || deal.assignedBranchName}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       </td>
-                      <td className="px-5 py-3.5 text-zinc-500 text-xs font-medium">{agentMap[lead.ownerId] ?? lead.assignAgent ?? <span className="text-zinc-300">Unassigned</span>}</td>
+
+                      {/* Services */}
                       <td className="px-5 py-3.5">
-                        <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${STAGE_COLORS[lead.stage] ?? "bg-zinc-100 text-zinc-600"}`}>
-                          {lead.stage}
+                        <div className="flex flex-wrap gap-1 max-w-[220px]">
+                          {((deal.services && deal.services.length > 0) || deal.serviceType) ? (
+                            (deal.services && deal.services.length > 0 ? deal.services : [deal.serviceType!]).map((svc) => (
+                              <span key={svc} className="rounded-md bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 text-[11px] font-bold text-emerald-800 shadow-2xs">
+                                {svc}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-zinc-300 text-xs">—</span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Stage Dropdown to move to other stages */}
+                      <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
+                        <div className="relative inline-flex items-center">
+                          <select
+                            value={deal.stage}
+                            onChange={(e) => triggerStageChange(deal.id, e.target.value as Stage)}
+                            className={`appearance-none rounded-xl pl-3 pr-7 py-1.5 text-xs font-bold transition-all cursor-pointer shadow-2xs border focus:outline-none focus:ring-2 focus:ring-emerald-200 ${
+                              deal.stage === "Initial"
+                                ? "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100/80"
+                                : deal.stage === "Connected"
+                                ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/80"
+                                : deal.stage === "Confirmed"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100/80"
+                                : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100/80"
+                            }`}
+                          >
+                            {STAGES.map((s) => (
+                              <option key={s} value={s} className="bg-white text-zinc-900 font-semibold py-1">
+                                {s}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 opacity-60 text-current">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Channel */}
+                      <td className="px-5 py-3.5">
+                        <span className={`inline-flex items-center rounded-lg border px-2.5 py-0.5 text-xs font-bold ${channelPill[deal.channel] ?? "bg-zinc-100 text-zinc-600 border-zinc-200"}`}>
+                          {deal.channel}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-zinc-500 text-xs font-medium">{lead.channel}</td>
-                      <td className="px-5 py-3.5 text-right font-semibold text-zinc-800 tabular-nums">{lead.value ? fmt(lead.value) : <span className="text-zinc-300">—</span>}</td>
-                      <td className="px-5 py-3.5 text-zinc-400 text-xs">
-                        {new Date(lead.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                      </td>
-                      <td className="px-5 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-2">
+
+                      {/* Notes & Reminder indicators */}
+                      <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-2">
                           <button
-                            onClick={(e) => { e.stopPropagation(); setEditingLead(lead); }}
-                            className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-semibold text-zinc-600 hover:border-emerald-200 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                            onClick={() => setViewingNoteLead(deal)}
+                            className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
+                              deal.notes
+                                ? "bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100"
+                                : "bg-zinc-50 text-zinc-400 border border-zinc-200/60 hover:text-zinc-700 hover:bg-zinc-100"
+                            }`}
+                            title={deal.notes ?? "Add note"}
                           >
-                            View
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5"/><path d="M17.5 2.5a2.121 2.121 0 0 1 3 3L12 14l-4 1 1-4 7.5-7.5z"/></svg>
+                            {deal.notes ? "Note" : "+ Note"}
                           </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); deleteLead(lead.id); }}
-                            className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-semibold text-zinc-600 hover:border-red-200 hover:text-red-500 hover:bg-red-50 transition-colors"
-                          >
-                            Trash
-                          </button>
+
+                          {(() => {
+                            const remStatus = getReminderStatus(deal.reminderAt);
+                            return (
+                              <button
+                                onClick={() => setReminderLead(deal)}
+                                className={`relative flex h-7 w-7 items-center justify-center rounded-lg border transition-all ${
+                                  remStatus.state === "overdue"
+                                    ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100 shadow-2xs"
+                                    : remStatus.state === "duesoon"
+                                    ? "bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100 shadow-2xs"
+                                    : remStatus.state === "today"
+                                    ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                                    : remStatus.state === "future"
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100 shadow-2xs"
+                                    : "bg-zinc-50 text-zinc-400 border-zinc-200/60 hover:text-zinc-700 hover:bg-zinc-100"
+                                }`}
+                                title={
+                                  remStatus.state === "overdue"
+                                    ? `Overdue (${remStatus.label}): ${remStatus.dateText}`
+                                    : remStatus.state === "duesoon" || remStatus.state === "today"
+                                    ? `Due today: ${remStatus.dateText}`
+                                    : remStatus.state === "future"
+                                    ? `Reminder: ${remStatus.dateText}`
+                                    : "Set reminder"
+                                }
+                                aria-label={deal.reminderAt ? `Reminder: ${remStatus.label}` : "Set reminder"}
+                              >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                                </svg>
+                                {remStatus.state === "overdue" && (
+                                  <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600 ring-2 ring-white" />
+                                  </span>
+                                )}
+                                {remStatus.state === "duesoon" && (
+                                  <span className="absolute -top-1 -right-1 flex h-2 w-2 rounded-full bg-amber-500 ring-2 ring-white" />
+                                )}
+                                {remStatus.state === "today" && (
+                                  <span className="absolute -top-1 -right-1 flex h-2 w-2 rounded-full bg-amber-400 ring-2 ring-white" />
+                                )}
+                                {remStatus.state === "future" && (
+                                  <span className="absolute -top-1 -right-1 flex h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
+                                )}
+                              </button>
+                            );
+                          })()}
                         </div>
+                      </td>
+
+                      {/* Created Date */}
+                      <td className="px-5 py-3.5 text-xs text-zinc-400 whitespace-nowrap">
+                        {formatRelativeTime(deal.createdAt)}
                       </td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
+
             {filteredLeads.length > 0 && (
-              <div className="border-t border-zinc-50 px-5 py-2.5 text-xs text-zinc-400">
-                {filteredLeads.length} leads · Total pipeline value: {fmt(totalValue)}
+              <div className="border-t border-zinc-100 bg-zinc-50/50 px-5 py-3 flex items-center justify-between text-xs text-zinc-500 font-medium">
+                <span>Showing <strong>{filteredLeads.length}</strong> of <strong>{leads.length}</strong> enquiries</span>
+                <span>Confirmed: <strong>{confirmedCount}</strong></span>
               </div>
             )}
           </div>
         </div>
+      )}
+
+      {/* ── View Note Modal ─────────────────────────────────────────────────── */}
+      {viewingNoteLead && (
+        <ViewNoteModal
+          lead={viewingNoteLead}
+          onClose={() => setViewingNoteLead(null)}
+          onSaveNote={handleSaveNote}
+        />
       )}
 
       {/* ── Reminder Modal ──────────────────────────────────────────────────── */}
@@ -454,6 +1082,19 @@ export default function AdminLeadsClient({ initialLeads, agents }: { initialLead
           onCleared={() => {
             setLeads((prev) => prev.map((l) => (l.id === reminderLead.id ? { ...l, reminderAt: undefined } : l)));
           }}
+        />
+      )}
+
+      {/* ── Confirm Stage Modal ────────────────────────────────────────────── */}
+      {pendingStage && (
+        <ConfirmStageModal
+          leadName={leads.find((l) => l.id === pendingStage.id)?.name ?? ""}
+          from={pendingStage.from}
+          to={pendingStage.to}
+          initialValue={leads.find((l) => l.id === pendingStage.id)?.value}
+          loading={confirmLoading}
+          onConfirm={(revenue) => confirmStageChange(revenue)}
+          onCancel={() => setPendingStage(null)}
         />
       )}
 
@@ -475,6 +1116,157 @@ export default function AdminLeadsClient({ initialLeads, agents }: { initialLead
           onVisaDocumentsChange={(docs) => patchLead(editingLead.id, { visaDocuments: docs })}
         />
       )}
+    </div>
+  );
+}
+
+// ── Confirm Stage Modal ────────────────────────────────────────────────────────
+
+function ConfirmStageModal({
+  leadName, from, to, initialValue = 0, loading, onConfirm, onCancel,
+}: {
+  leadName: string; from: Stage; to: Stage; initialValue?: number; loading: boolean;
+  onConfirm: (revenue?: number) => void; onCancel: () => void;
+}) {
+  const [revenue, setRevenue] = useState<number | "">(initialValue > 0 ? initialValue : "");
+  const isConfirmed = to === "Confirmed";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onCancel}>
+      <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl ring-1 ring-zinc-200" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 pt-5 pb-4">
+          <div className={`flex h-10 w-10 items-center justify-center rounded-full mb-3 ${isConfirmed ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"}`}>
+            {isConfirmed ? (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 9v4M12 17h.01"/>
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
+          </div>
+          <h3 className="text-base font-bold text-zinc-900 mb-1">
+            {isConfirmed ? "Deal Confirmed! 🎉" : "Move to next stage?"}
+          </h3>
+          <p className="text-sm text-zinc-500">
+            {isConfirmed ? (
+              <>
+                Advance <span className="font-semibold text-zinc-800">{leadName}</span> to{" "}
+                <span className="font-semibold text-emerald-600">Confirmed</span>. Enter the confirmed revenue for this deal below:
+              </>
+            ) : (
+              <>
+                This will advance <span className="font-semibold text-zinc-800">{leadName}</span> from{" "}
+                <span className="font-semibold text-zinc-800">{from}</span> →{" "}
+                <span className="font-semibold text-brand-600">{to}</span>.
+              </>
+            )}
+          </p>
+
+          {isConfirmed && (
+            <div className="mt-4">
+              <label className="block text-xs font-bold text-zinc-700 mb-1.5">
+                Deal Revenue (₹)
+              </label>
+              <div className="relative flex items-center rounded-xl border border-zinc-300 bg-zinc-50 px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-100 transition-all">
+                <span className="text-base font-bold text-zinc-400 mr-2 select-none">₹</span>
+                <input
+                  type="number"
+                  min="0"
+                  autoFocus
+                  value={revenue}
+                  onChange={(e) => setRevenue(e.target.value === "" ? "" : Number(e.target.value))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !loading) {
+                      e.preventDefault();
+                      onConfirm(revenue === "" ? 0 : Number(revenue));
+                    }
+                  }}
+                  placeholder="e.g. 50000"
+                  className="w-full bg-transparent text-base font-bold text-zinc-900 outline-none placeholder:text-zinc-400 [appearance:textfield]"
+                />
+              </div>
+              {typeof revenue === "number" && revenue > 0 && (
+                <p className="mt-1.5 text-xs font-semibold text-emerald-600">
+                  ₹{revenue.toLocaleString("en-IN")}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="flex gap-2 px-5 pb-5">
+          <button onClick={onCancel} className="flex-1 rounded-xl border border-zinc-200 py-2.5 text-sm font-semibold text-zinc-600 hover:bg-zinc-50 transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={() => onConfirm(isConfirmed ? (revenue === "" ? 0 : Number(revenue)) : undefined)}
+            disabled={loading}
+            className={`flex-1 rounded-xl py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-60 ${
+              isConfirmed ? "bg-emerald-600 hover:bg-emerald-700" : "bg-brand-600 hover:bg-brand-700"
+            }`}
+          >
+            {loading ? "Moving…" : isConfirmed ? "Confirm Deal" : "Confirm"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ViewNoteModal({
+  lead,
+  onClose,
+  onSaveNote,
+}: {
+  lead: DrawerLead;
+  onClose: () => void;
+  onSaveNote: (leadId: string, note: string) => Promise<void>;
+}) {
+  const [noteText, setNoteText] = useState(lead.notes || "");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    await onSaveNote(lead.id, noteText);
+    setSaving(false);
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl ring-1 ring-zinc-200/80" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-zinc-100">
+          <div>
+            <h2 className="text-base font-bold text-zinc-900">Notes for {lead.name}</h2>
+            <p className="text-xs text-zinc-400 mt-0.5">Enquiry notes &amp; remarks</p>
+          </div>
+          <button onClick={onClose} className="rounded-xl p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M6 18L18 6" strokeLinecap="round"/></svg>
+          </button>
+        </div>
+        <div className="px-6 py-5 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">Enquiry Notes</label>
+            <textarea
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              placeholder="Write any note for this enquiry..."
+              rows={5}
+              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 p-3.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-100 transition-colors resize-none"
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-1">
+            <button onClick={onClose} className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-semibold text-zinc-600 hover:bg-zinc-50 transition-colors">
+              Cancel
+            </button>
+            <button onClick={handleSave} disabled={saving} className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60 transition-colors">
+              {saving ? "Saving…" : "Save Note"}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "rea
 import { useSearchParams } from "next/navigation";
 import { CHANNELS, SERVICES, STAGES, type Channel, type Stage } from "@/lib/constants";
 import { formatRelativeTime } from "@/lib/format";
-import LeadDrawer, { type DrawerLead, type LeadDocument } from "./LeadDrawer";
+import LeadDrawer, { type DrawerLead, type LeadDocument, type LeadUpdate } from "./LeadDrawer";
 import SetReminderModal from "./SetReminderModal";
 import { playReminderChime, sendBrowserNotification } from "@/lib/sound";
 
@@ -350,6 +350,11 @@ function LeadsPageContent() {
     const prevLead = leads.find((l) => l.id === id);
     if (!prevLead || prevLead.stage === newStage) return;
 
+    if (newStage === "Confirmed") {
+      handleStageChange(id, newStage);
+      return;
+    }
+
     // Optimistic update
     setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, stage: newStage } : l)));
     setEditingLead((prev) => (prev?.id === id ? { ...prev, stage: newStage } : prev));
@@ -366,18 +371,36 @@ function LeadsPageContent() {
     }
   }
 
-  async function confirmStageChange() {
+  async function confirmStageChange(revenue?: number) {
     if (!pendingStage) return;
     setConfirmLoading(true);
+    const payload: { stage: Stage; value?: number } = { stage: pendingStage.to };
+    if (pendingStage.to === "Confirmed" && typeof revenue === "number") {
+      payload.value = revenue;
+    }
     const res = await fetch(`/api/leads/${pendingStage.id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stage: pendingStage.to }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     setConfirmLoading(false);
     setPendingStage(null);
-    if (res.ok) setLeads((p) => p.map((l) => l.id === pendingStage.id ? { ...l, stage: pendingStage.to } : l));
-    else setErrorMsg(data.error ?? "Cannot move to that stage.");
+    if (res.ok) {
+      setLeads((p) =>
+        p.map((l) =>
+          l.id === pendingStage.id
+            ? { ...l, stage: pendingStage.to, ...(payload.value !== undefined ? { value: payload.value } : {}) }
+            : l
+        )
+      );
+      setEditingLead((p) =>
+        p?.id === pendingStage.id
+          ? { ...p, stage: pendingStage.to, ...(payload.value !== undefined ? { value: payload.value } : {}) }
+          : p
+      );
+    } else {
+      setErrorMsg(data.error ?? "Cannot move to that stage.");
+    }
   }
 
   async function handleDelete(id: string) {
@@ -387,15 +410,7 @@ function LeadsPageContent() {
     await fetch(`/api/leads/${id}`, { method: "DELETE" });
   }
 
-  async function handleUpdateDeal(id: string, data: {
-    name: string; stage: Stage;
-    email: string; phone: string; color: string; notes: string;
-    city: string; state: string; neetStatus: string;
-    preferredCountry: string; preferredUniversity1: string; preferredUniversity2: string; assignAgent: string;
-    ownerId: string;
-    firstPayment: number; secondPayment: number; thirdPaymentAmount: number;
-    otcAmount: number; totalServiceCharge: number;
-  }) {
+  async function handleUpdateDeal(id: string, data: LeadUpdate) {
     const res = await fetch(`/api/leads/${id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
     });
@@ -622,13 +637,13 @@ function LeadsPageContent() {
             )}
           </div>
 
-          {/* Channel Filters (No Email) */}
+          {/* Channel Filters */}
           <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-zinc-200 shadow-2xs">
             <button onClick={() => setChannelFilter("All")}
               className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${channelFilter === "All" ? "bg-zinc-900 text-white shadow-2xs" : "text-zinc-500 hover:text-zinc-800"}`}>
               All
             </button>
-            {(["WhatsApp", "Instagram", "Ads"] as const).map((c) => (
+            {CHANNELS.map((c) => (
               <button key={c} onClick={() => setChannelFilter(channelFilter === c ? "All" : c)}
                 className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${channelFilter === c ? "bg-zinc-900 text-white shadow-2xs" : "text-zinc-500 hover:text-zinc-800"}`}>
                 {c}
@@ -729,6 +744,15 @@ function LeadsPageContent() {
                                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1.2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.9a16 16 0 0 0 6.08 6.08l.96-.96a2 2 0 0 1 2.11-.45c.9.36 1.84.58 2.81.7A2 2 0 0 1 22 16.92z" strokeLinecap="round"/></svg>
                               </span>
                               <span>{deal.phone}</span>
+                            </div>
+                          )}
+
+                          {/* Revenue */}
+                          {deal.value > 0 && (
+                            <div className="mt-2 flex items-center">
+                              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 border border-emerald-300/80 px-2 py-0.5 text-xs font-black text-emerald-800 shadow-2xs">
+                                <span>₹</span>{deal.value.toLocaleString("en-IN")}
+                              </span>
                             </div>
                           )}
 
@@ -1166,8 +1190,9 @@ function LeadsPageContent() {
           leadName={leads.find((l) => l.id === pendingStage.id)?.name ?? ""}
           from={pendingStage.from}
           to={pendingStage.to}
+          initialValue={leads.find((l) => l.id === pendingStage.id)?.value}
           loading={confirmLoading}
-          onConfirm={confirmStageChange}
+          onConfirm={(revenue) => confirmStageChange(revenue)}
           onCancel={() => setPendingStage(null)}
         />
       )}
@@ -1238,33 +1263,92 @@ function ErrorModal({ message, onClose }: { message: string; onClose: () => void
 
 // ── Confirm Stage Modal ────────────────────────────────────────────────────────
 
-function ConfirmStageModal({ leadName, from, to, loading, onConfirm, onCancel }: {
-  leadName: string; from: Stage; to: Stage; loading: boolean;
-  onConfirm: () => void; onCancel: () => void;
+function ConfirmStageModal({
+  leadName, from, to, initialValue = 0, loading, onConfirm, onCancel,
+}: {
+  leadName: string; from: Stage; to: Stage; initialValue?: number; loading: boolean;
+  onConfirm: (revenue?: number) => void; onCancel: () => void;
 }) {
+  const [revenue, setRevenue] = useState<number | "">(initialValue > 0 ? initialValue : "");
+  const isConfirmed = to === "Confirmed";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onCancel}>
       <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl ring-1 ring-zinc-200" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 pt-5 pb-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 mb-3">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-600">
-              <path d="M12 9v4M12 17h.01"/>
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+          <div className={`flex h-10 w-10 items-center justify-center rounded-full mb-3 ${isConfirmed ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"}`}>
+            {isConfirmed ? (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 9v4M12 17h.01"/>
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
           </div>
-          <h3 className="text-sm font-bold text-zinc-900 mb-1">Move to next stage?</h3>
+          <h3 className="text-base font-bold text-zinc-900 mb-1">
+            {isConfirmed ? "Deal Confirmed! 🎉" : "Move to next stage?"}
+          </h3>
           <p className="text-sm text-zinc-500">
-            This will advance <span className="font-semibold text-zinc-800">{leadName}</span> from{" "}
-            <span className="font-semibold text-zinc-800">{from}</span> →{" "}
-            <span className="font-semibold text-brand-600">{to}</span>.
+            {isConfirmed ? (
+              <>
+                Advance <span className="font-semibold text-zinc-800">{leadName}</span> to{" "}
+                <span className="font-semibold text-emerald-600">Confirmed</span>. Enter the confirmed revenue for this deal below:
+              </>
+            ) : (
+              <>
+                This will advance <span className="font-semibold text-zinc-800">{leadName}</span> from{" "}
+                <span className="font-semibold text-zinc-800">{from}</span> →{" "}
+                <span className="font-semibold text-brand-600">{to}</span>.
+              </>
+            )}
           </p>
+
+          {isConfirmed && (
+            <div className="mt-4">
+              <label className="block text-xs font-bold text-zinc-700 mb-1.5">
+                Deal Revenue (₹)
+              </label>
+              <div className="relative flex items-center rounded-xl border border-zinc-300 bg-zinc-50 px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-100 transition-all">
+                <span className="text-base font-bold text-zinc-400 mr-2 select-none">₹</span>
+                <input
+                  type="number"
+                  min="0"
+                  autoFocus
+                  value={revenue}
+                  onChange={(e) => setRevenue(e.target.value === "" ? "" : Number(e.target.value))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !loading) {
+                      e.preventDefault();
+                      onConfirm(revenue === "" ? 0 : Number(revenue));
+                    }
+                  }}
+                  placeholder="e.g. 50000"
+                  className="w-full bg-transparent text-base font-bold text-zinc-900 outline-none placeholder:text-zinc-400 [appearance:textfield]"
+                />
+              </div>
+              {typeof revenue === "number" && revenue > 0 && (
+                <p className="mt-1.5 text-xs font-semibold text-emerald-600">
+                  ₹{revenue.toLocaleString("en-IN")}
+                </p>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex gap-2 px-5 pb-5">
           <button onClick={onCancel} className="flex-1 rounded-xl border border-zinc-200 py-2.5 text-sm font-semibold text-zinc-600 hover:bg-zinc-50 transition-colors">
             Cancel
           </button>
-          <button onClick={onConfirm} disabled={loading} className="flex-1 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60 transition-colors">
-            {loading ? "Moving…" : "Confirm"}
+          <button
+            onClick={() => onConfirm(isConfirmed ? (revenue === "" ? 0 : Number(revenue)) : undefined)}
+            disabled={loading}
+            className={`flex-1 rounded-xl py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-60 ${
+              isConfirmed ? "bg-emerald-600 hover:bg-emerald-700" : "bg-brand-600 hover:bg-brand-700"
+            }`}
+          >
+            {loading ? "Moving…" : isConfirmed ? "Confirm Deal" : "Confirm"}
           </button>
         </div>
       </div>
@@ -1331,19 +1415,19 @@ function ViewNoteModal({
 
 // ── Add Deal Modal ─────────────────────────────────────────────────────────────
 
-// ── Add Deal Modal ─────────────────────────────────────────────────────────────
-
-function AddDealModal({ stage, onClose, onSubmit }: {
-  stage: Stage;
-  onClose: () => void;
+function AddDealModal({
+  stage, onClose, onSubmit,
+}: {
+  stage: Stage; onClose: () => void;
   onSubmit: (deal: {
-    name: string; channel: Channel; stage: Stage; phone: string; services?: string[]; notes?: string;
+    name: string; channel: Channel; stage: Stage; phone: string; services?: string[]; notes?: string; value?: number;
   }) => Promise<{ error?: string }>;
 }) {
   const [name, setName] = useState("");
   const [channel, setChannel] = useState<Channel>(CHANNELS[0]);
   const [phone, setPhone] = useState("");
   const [stageVal, setStageVal] = useState<Stage>(stage);
+  const [value, setValue] = useState<number | "">("");
   const [selectedServices, setSelectedServices] = useState<string[]>(["Tours & Packages"]);
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
@@ -1371,6 +1455,7 @@ function AddDealModal({ stage, onClose, onSubmit }: {
       phone: cleanPhone,
       services: selectedServices,
       notes,
+      value: typeof value === "number" && value >= 0 ? value : 0,
     });
     setLoading(false);
     if (result.error) setError(result.error);
@@ -1451,6 +1536,25 @@ function AddDealModal({ stage, onClose, onSubmit }: {
               </select>
             </div>
           </div>
+
+          {stageVal === "Confirmed" && (
+            <div>
+              <label className="block text-xs font-semibold text-emerald-700 uppercase tracking-wide">
+                Deal Revenue (₹)
+              </label>
+              <div className="relative flex items-center">
+                <span className="absolute left-3 text-sm font-bold text-zinc-400 select-none">₹</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={value}
+                  onChange={(e) => setValue(e.target.value === "" ? "" : Number(e.target.value))}
+                  placeholder="e.g. 50000"
+                  className={`${inputCls} pl-7 font-bold text-zinc-900`}
+                />
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide">Notes</label>

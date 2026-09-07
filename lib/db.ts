@@ -594,6 +594,7 @@ export async function updateLead(
   updates: Partial<Pick<Lead,
     "stage" | "value" | "name" | "channel" | "email" | "phone" | "color" | "notes" |
     "city" | "state" | "neetStatus" | "preferredCountry" | "preferredUniversity1" | "preferredUniversity2" | "assignAgent" | "ownerId" |
+    "assignedBranchId" | "assignedBranchName" |
     "firstPayment" | "secondPayment" | "thirdPaymentAmount" | "otcAmount" | "totalServiceCharge" |
     "companyName" | "designation" | "yearlyVolume" | "rateOfferedCN" | "rateOfferedCard" | "rateOfferedTTDD" | "nextFollowUp" | "feedback" | "clientVisitStatus"
   >>
@@ -687,6 +688,7 @@ export async function updateLeadAdmin(
   updates: Partial<Pick<Lead,
     "ownerId" | "stage" | "value" | "name" | "channel" | "email" | "phone" | "color" | "notes" |
     "city" | "state" | "neetStatus" | "preferredCountry" | "preferredUniversity1" | "preferredUniversity2" | "assignAgent" |
+    "assignedBranchId" | "assignedBranchName" |
     "firstPayment" | "secondPayment" | "thirdPaymentAmount" | "otcAmount" | "totalServiceCharge" |
     "companyName" | "designation" | "yearlyVolume" | "rateOfferedCN" | "rateOfferedCard" | "rateOfferedTTDD" | "nextFollowUp" | "feedback" | "clientVisitStatus"
   >>
@@ -1007,14 +1009,87 @@ export async function seedAccountData(_ownerId: string): Promise<void> {
 
 export async function getAllBranches() {
   await dbConnect();
-  const docs = await BranchModel.find();
-  return docs.map((d) => d.toObject());
+  let docs = await BranchModel.find();
+  if (docs.length === 0) {
+    const seedBranches = [
+      {
+        id: "br-delhi-01",
+        name: "FXPertise Delhi NCR Branch",
+        city: "Delhi NCR",
+        address: "Inner Circle, Connaught Place, New Delhi 110001",
+        phone: "+91 98100 11223",
+        email: "delhi@fxpertise.in",
+        kycStatus: "verified",
+        status: "active",
+        walletBalance: 180000,
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: "br-kolkata-01",
+        name: "FXPertise Kolkata Branch",
+        city: "Kolkata",
+        address: "Park Street / Salt Lake Sector V, Kolkata 700016",
+        phone: "+91 98300 55443",
+        email: "kolkata@fxpertise.in",
+        kycStatus: "verified",
+        status: "active",
+        walletBalance: 150000,
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: "br-mumbai-01",
+        name: "FXPertise Fort Branch (Main)",
+        city: "Mumbai",
+        address: "124 M.G. Road, Fort, Mumbai 400001",
+        phone: "+91 98200 12345",
+        email: "mumbai.fort@fxpertise.in",
+        kycStatus: "verified",
+        status: "active",
+        walletBalance: 150000,
+        createdAt: new Date().toISOString(),
+      },
+    ];
+    await BranchModel.insertMany(seedBranches).catch(() => {});
+    docs = await BranchModel.find();
+  }
+  return docs.map((d) => toPlain(d));
 }
 
 export async function getBranchById(id: string) {
   await dbConnect();
   const doc = await BranchModel.findOne({ id });
-  return doc ? doc.toObject() : null;
+  return doc ? toPlain(doc) : null;
+}
+
+export async function createOrUpdateBranch(branchData: {
+  id?: string;
+  name: string;
+  city: string;
+  address: string;
+  phone: string;
+  email: string;
+  status?: "active" | "suspended";
+}) {
+  await dbConnect();
+  const id = branchData.id || `br-${branchData.city.toLowerCase().replace(/[^a-z0-9]/g, "-").slice(0, 10)}-${Date.now().toString().slice(-4)}`;
+  const updated = await BranchModel.findOneAndUpdate(
+    { id },
+    {
+      $set: {
+        ...branchData,
+        id,
+        updatedAt: new Date().toISOString(),
+      },
+      $setOnInsert: {
+        createdAt: new Date().toISOString(),
+        kycStatus: "verified",
+        walletBalance: 100000,
+        margins: {},
+      },
+    },
+    { upsert: true, returnDocument: "after" }
+  );
+  return toPlain(updated);
 }
 
 export async function updateBranchMargins(branchId: string, margins: Record<string, { buyMargin: number; sellMargin: number }>) {

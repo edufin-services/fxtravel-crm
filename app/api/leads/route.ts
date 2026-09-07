@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => null);
   const {
-    name, channel, stage, phone, services, notes, email,
+    name, channel, stage, phone, services, notes, email, value,
     companyName, designation, yearlyVolume, rateOfferedCN, rateOfferedCard, rateOfferedTTDD, nextFollowUp, feedback, clientVisitStatus,
   } = body ?? {};
   const cleanPhone = typeof phone === "string" ? phone.replace(/\D/g, "") : "";
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     ownerId: session.userId,
     name: name.trim(),
     channel,
-    value: 0,
+    value: typeof value === "number" && value >= 0 ? value : 0,
     stage,
     phone: cleanPhone,
     email: typeof email === "string" ? email.trim() : undefined,

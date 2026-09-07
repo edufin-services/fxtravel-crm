@@ -16,6 +16,7 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/admin/
   const {
     name, value, stage, email, phone, color, notes, services, reminderAt,
     city, state, neetStatus, preferredCountry, preferredUniversity1, preferredUniversity2, assignAgent, ownerId,
+    assignedBranchId, assignedBranchName,
     firstPayment, secondPayment, thirdPaymentAmount, otcAmount, totalServiceCharge,
   } = body ?? {};
 
@@ -46,6 +47,8 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/admin/
   if (reminderAt !== undefined) updates.reminderAt = typeof reminderAt === "string" ? reminderAt : null;
   if (services !== undefined && Array.isArray(services)) updates.services = services;
   if (city !== undefined) updates.city = typeof city === "string" ? city.trim() : "";
+  if (assignedBranchId !== undefined) updates.assignedBranchId = typeof assignedBranchId === "string" ? assignedBranchId.trim() : "";
+  if (assignedBranchName !== undefined) updates.assignedBranchName = typeof assignedBranchName === "string" ? assignedBranchName.trim() : "";
   if (state !== undefined) updates.state = typeof state === "string" ? state.trim() : "";
   if (neetStatus !== undefined) updates.neetStatus = typeof neetStatus === "string" ? neetStatus.trim() : "";
   if (preferredCountry !== undefined) updates.preferredCountry = typeof preferredCountry === "string" ? preferredCountry.trim() : "";

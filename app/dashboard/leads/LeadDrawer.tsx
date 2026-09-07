@@ -50,6 +50,7 @@ export type DrawerLead = {
   thirdPaymentInvoices?: LeadDocument[];
   visaDocuments?: LeadDocument[];
   reminderAt?: string;
+  value?: number;
   // Client Visit Scope
   companyName?: string;
   designation?: string;
@@ -62,7 +63,7 @@ export type DrawerLead = {
   clientVisitStatus?: string;
 };
 
-type LeadUpdate = {
+export type LeadUpdate = {
   name: string; stage: Stage;
   email: string; phone: string; color: string; notes: string;
   services?: string[];
@@ -75,6 +76,7 @@ type LeadUpdate = {
   companyName?: string; designation?: string; yearlyVolume?: number;
   rateOfferedCN?: number; rateOfferedCard?: number; rateOfferedTTDD?: number;
   nextFollowUp?: string; feedback?: string; clientVisitStatus?: string;
+  value?: number;
 };
 
 const LEAD_COLORS = [
@@ -452,6 +454,7 @@ export default function LeadDrawer({
       : ["Tours & Packages"]
   );
   const [stage, setStage] = useState<Stage>(lead.stage);
+  const [value, setValue] = useState<number>(lead.value ?? 0);
   // Payment fields
   const [firstPayment, setFirstPayment] = useState(lead.firstPayment ?? 0);
   const [secondPayment, setSecondPayment] = useState(lead.secondPayment ?? 0);
@@ -691,6 +694,7 @@ export default function LeadDrawer({
       rateOfferedCard: rateOfferedCard !== "" ? Number(rateOfferedCard) : 0,
       rateOfferedTTDD: rateOfferedTTDD !== "" ? Number(rateOfferedTTDD) : 0,
       nextFollowUp, feedback, clientVisitStatus,
+      value: Number(value) || 0,
     });
     setLoading(false);
     if (result.error) {
@@ -940,6 +944,19 @@ export default function LeadDrawer({
               <FieldRow label="Channel">
                 <span className="text-sm text-zinc-900 py-1 px-2 inline-block">{lead.channel}</span>
               </FieldRow>
+              <FieldRow label="Revenue (₹)">
+                <div className="flex items-center">
+                  <span className="text-sm font-bold text-zinc-400 mr-1.5 select-none">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={value === 0 ? "" : value}
+                    onChange={(e) => setValue(e.target.value === "" ? 0 : Number(e.target.value))}
+                    className={numInputCls}
+                    placeholder="0"
+                  />
+                </div>
+              </FieldRow>
               <FieldRow label="Assign User">
                 <select
                   value={assignAgentId}
@@ -969,7 +986,17 @@ export default function LeadDrawer({
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   </span>
                 ) : (
-                  <select value={stage} onChange={(e) => setStage(e.target.value as Stage)} className={selectCls}>
+                  <select
+                    value={stage}
+                    onChange={(e) => {
+                      const newStage = e.target.value as Stage;
+                      setStage(newStage);
+                      if (newStage === "Confirmed" && lead.stage !== "Confirmed") {
+                        setShowStageConfirm(true);
+                      }
+                    }}
+                    className={selectCls}
+                  >
                     <option value={lead.stage}>{lead.stage} (current)</option>
                     <option value={nextStage!}>→ {nextStage}</option>
                   </select>
@@ -1253,24 +1280,76 @@ export default function LeadDrawer({
 
         {/* ── Stage change confirmation overlay ─────────────────────────────── */}
         {showStageConfirm && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowStageConfirm(false)}>
-            <div className="mx-4 w-full max-w-sm rounded-2xl bg-white shadow-2xl ring-1 ring-zinc-200" onClick={(e) => e.stopPropagation()}>
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setShowStageConfirm(false)}>
+            <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl ring-1 ring-zinc-200" onClick={(e) => e.stopPropagation()}>
               <div className="px-5 pt-5 pb-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 mb-3">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-600"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                <div className={`flex h-10 w-10 items-center justify-center rounded-full mb-3 ${stage === "Confirmed" ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"}`}>
+                  {stage === "Confirmed" ? (
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 9v4M12 17h.01"/>
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  )}
                 </div>
-                <h3 className="text-sm font-bold text-zinc-900 mb-1">Move to next stage?</h3>
+                <h3 className="text-base font-bold text-zinc-900 mb-1">
+                  {stage === "Confirmed" ? "Deal Confirmed! 🎉" : "Move to next stage?"}
+                </h3>
                 <p className="text-sm text-zinc-500">
-                  This will advance <span className="font-semibold text-zinc-800">{lead.name}</span> from{" "}
-                  <span className="font-semibold text-zinc-800">{lead.stage}</span> to{" "}
-                  <span className="font-semibold text-brand-600">{stage}</span>.
+                  {stage === "Confirmed" ? (
+                    <>
+                      Advance <span className="font-semibold text-zinc-800">{lead.name}</span> to{" "}
+                      <span className="font-semibold text-emerald-600">Confirmed</span>. Enter the confirmed revenue for this deal below:
+                    </>
+                  ) : (
+                    <>
+                      This will advance <span className="font-semibold text-zinc-800">{lead.name}</span> from{" "}
+                      <span className="font-semibold text-zinc-800">{lead.stage}</span> to{" "}
+                      <span className="font-semibold text-brand-600">{stage}</span>.
+                    </>
+                  )}
                 </p>
+
+                {stage === "Confirmed" && (
+                  <div className="mt-4">
+                    <label className="block text-xs font-bold text-zinc-700 mb-1.5">
+                      Deal Revenue (₹)
+                    </label>
+                    <div className="relative flex items-center rounded-xl border border-zinc-300 bg-zinc-50 px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-100 transition-all">
+                      <span className="text-base font-bold text-zinc-400 mr-2 select-none">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        autoFocus
+                        value={value === 0 ? "" : value}
+                        onChange={(e) => setValue(e.target.value === "" ? 0 : Number(e.target.value))}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !loading) {
+                            e.preventDefault();
+                            setShowStageConfirm(false);
+                            doSubmit();
+                          }
+                        }}
+                        placeholder="e.g. 50000"
+                        className="w-full bg-transparent text-base font-bold text-zinc-900 outline-none placeholder:text-zinc-400 [appearance:textfield]"
+                      />
+                    </div>
+                    {value > 0 && (
+                      <p className="mt-1.5 text-xs font-semibold text-emerald-600">
+                        ₹{Number(value).toLocaleString("en-IN")}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="flex gap-2 px-5 pb-5">
                 <button
                   type="button"
                   onClick={() => setShowStageConfirm(false)}
-                  className="flex-1 rounded-lg border border-zinc-200 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50 transition-colors"
+                  className="flex-1 rounded-xl border border-zinc-200 py-2.5 text-sm font-semibold text-zinc-600 hover:bg-zinc-50 transition-colors"
                 >
                   Cancel
                 </button>
@@ -1278,9 +1357,11 @@ export default function LeadDrawer({
                   type="button"
                   onClick={() => { setShowStageConfirm(false); doSubmit(); }}
                   disabled={loading}
-                  className="flex-1 rounded-lg bg-brand-600 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60 transition-colors"
+                  className={`flex-1 rounded-xl py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-60 ${
+                    stage === "Confirmed" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-brand-600 hover:bg-brand-700"
+                  }`}
                 >
-                  {loading ? "Moving..." : "Confirm"}
+                  {loading ? "Moving..." : stage === "Confirmed" ? "Confirm Deal" : "Confirm"}
                 </button>
               </div>
             </div>

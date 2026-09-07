@@ -54,14 +54,16 @@ export async function GET(request: NextRequest) {
       (lead.phone && lead.phone.includes(query)) ||
       (lead.email && lead.email.toLowerCase().includes(query)) ||
       (lead.assignAgent && lead.assignAgent.toLowerCase().includes(query)) ||
+      (lead.city && lead.city.toLowerCase().includes(query)) ||
       lead.stage.toLowerCase().includes(query)
     ) {
       const assigned = agentMap[lead.ownerId] || lead.assignAgent || "Unassigned";
+      const locText = lead.city ? `📍 ${lead.city} · ` : "";
       results.push({
         id: lead.id,
         type: "lead",
         title: lead.name,
-        subtitle: `${lead.channel} · ${lead.stage} · ${assigned}`,
+        subtitle: `${locText}${lead.channel} · ${lead.stage} · ${assigned}`,
         href: lead.ownerId ? `/admin/agents/${lead.ownerId}?leadId=${lead.id}` : `/admin/leads?leadId=${lead.id}`,
       });
     }
@@ -73,6 +75,7 @@ export async function GET(request: NextRequest) {
       lead.name.toLowerCase().includes(query) ||
       (lead.phone && lead.phone.includes(query)) ||
       (lead.email && lead.email.toLowerCase().includes(query)) ||
+      (lead.city && lead.city.toLowerCase().includes(query)) ||
       lead.stage.toLowerCase().includes(query)
     ) {
       const assigned = agentMap[lead.ownerId] || lead.assignAgent || "Unassigned";
@@ -80,7 +83,7 @@ export async function GET(request: NextRequest) {
         id: lead.id,
         type: "trash",
         title: lead.name,
-        subtitle: `Deleted Lead · ${lead.channel} · ${lead.stage} · ${assigned}`,
+        subtitle: `Deleted Lead · ${lead.city ? `${lead.city} · ` : ""}${lead.channel} · ${lead.stage} · ${assigned}`,
         href: `/admin/trash?q=${encodeURIComponent(lead.name)}`,
       });
     }

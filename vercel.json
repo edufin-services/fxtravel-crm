@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/email-report?period=daily&token=fx_sheets_sync_2026",
+      "schedule": "30 14 * * *"
+    },
+    {
+      "path": "/api/cron/email-report?period=weekly&token=fx_sheets_sync_2026",
+      "schedule": "30 14 * * 0"
+    }
+  ]
+}

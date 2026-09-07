@@ -544,9 +544,9 @@ export async function sendActivityReportEmail(options?: {
 
   const reportData = await generateActivityReport(period, { recipient });
 
-  const host = process.env.EMAIL_HOST;
-  const user = process.env.EMAIL_USER;
-  const pass = process.env.EMAIL_PASS;
+  const host = process.env.EMAIL_HOST?.trim();
+  const user = process.env.EMAIL_USER?.trim();
+  const pass = process.env.EMAIL_PASS?.trim();
   const port = Number(process.env.EMAIL_PORT || 587);
   const fromName = process.env.EMAIL_FROM_NAME || "Fxpertise CRM";
 
@@ -555,7 +555,7 @@ export async function sendActivityReportEmail(options?: {
   const text = buildReportEmailText(reportData);
 
   if (!host || !user || !pass) {
-    const errorMsg = `SMTP credentials (EMAIL_HOST, EMAIL_USER, EMAIL_PASS) are not configured. Simulated dispatch for ${recipient}.`;
+    const errorMsg = `SMTP credentials (EMAIL_HOST, EMAIL_USER, EMAIL_PASS) are not configured in environment. Report for ${recipient} could not be dispatched.`;
     console.warn(`[email-report] ${errorMsg}`);
 
     await logEmailReport({
@@ -563,7 +563,7 @@ export async function sendActivityReportEmail(options?: {
       recipient,
       subject,
       sentAt: new Date().toISOString(),
-      status: "success",
+      status: "failed",
       leadCount: reportData.stats.totalNewLeads,
       stageChangeCount: reportData.stats.totalStageChanges,
       confirmedCount: reportData.stats.totalConfirmed,
@@ -572,15 +572,9 @@ export async function sendActivityReportEmail(options?: {
       error: errorMsg,
     });
 
-    if (period === "daily") {
-      await updateReportSettings({ lastDailySentAt: new Date().toISOString() });
-    } else if (period === "weekly") {
-      await updateReportSettings({ lastWeeklySentAt: new Date().toISOString() });
-    }
-
     return {
-      success: true,
-      message: `Report compiled successfully. (SMTP simulated: credentials not configured)`,
+      success: false,
+      message: `Failed to dispatch email report: SMTP credentials are not configured in .env.local.`,
       reportData,
     };
   }

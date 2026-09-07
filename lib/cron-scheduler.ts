@@ -13,34 +13,47 @@ export async function checkAndDispatchScheduledReports(): Promise<void> {
     const settings = await getReportSettings();
     const now = new Date();
 
-    // Convert current time to IST (Asia/Kolkata)
+    // 1. Get current date & time in IST (Asia/Kolkata)
+    const istDateFormatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const todayIstDate = istDateFormatter.format(now); // "YYYY-MM-DD"
+    const istDayOfWeek = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).getDay(); // 0 = Sunday
+
     const istTimeFormatter = new Intl.DateTimeFormat("en-US", {
       timeZone: "Asia/Kolkata",
       hour: "numeric",
       minute: "numeric",
       hour12: false,
-      weekday: "short",
     });
-
     const parts = istTimeFormatter.formatToParts(now);
     const currentHour = Number(parts.find((p) => p.type === "hour")?.value || "0");
     const currentMinute = Number(parts.find((p) => p.type === "minute")?.value || "0");
-    const currentDayOfWeek = now.getDay(); // 0 is Sunday
 
     const [targetHour, targetMinute] = (settings.dailyReportTime || "20:00")
       .split(":")
       .map((n) => Number(n) || 0);
 
-    // 1. Check Daily Report
+    const isPastScheduledTime =
+      currentHour > targetHour || (currentHour === targetHour && currentMinute >= targetMinute);
+
+    // 2. Check Daily Report:
+    // Only dispatch on or after scheduled time (e.g. 20:00 IST),
+    // and strictly once per calendar day (todayIstDate !== lastDailyDate)
     if (settings.dailyEnabled) {
-      const lastDaily = settings.lastDailySentAt ? new Date(settings.lastDailySentAt).getTime() : 0;
-      const hoursSinceLastDaily = (now.getTime() - lastDaily) / (1000 * 60 * 60);
+      const lastDailyDate = settings.lastDailySentAt
+        ? istDateFormatter.format(new Date(settings.lastDailySentAt))
+        : "";
 
-      // Trigger if not sent in last 20 hours AND current IST time is past scheduled hour
-      const isPastDailyTime = currentHour > targetHour || (currentHour === targetHour && currentMinute >= targetMinute);
+      const alreadySentToday = lastDailyDate === todayIstDate;
 
-      if (hoursSinceLastDaily >= 20 && isPastDailyTime) {
-        console.log("[cron-scheduler] Daily report is due. Dispatching...");
+      if (isPastScheduledTime && !alreadySentToday) {
+        console.log(
+          `[cron-scheduler] Scheduled daily report is due for ${todayIstDate} at ${settings.dailyReportTime || "20:00"} IST. Dispatching...`
+        );
         await sendActivityReportEmail({
           period: "daily",
           customRecipient: settings.customRecipientEmail || undefined,
@@ -48,17 +61,30 @@ export async function checkAndDispatchScheduledReports(): Promise<void> {
       }
     }
 
-    // 2. Check Weekly Report
+    // 3. Check Weekly Report:
+    // Only dispatch on the designated day (default Sunday = 0) on or after scheduled time,
+    // and strictly once per weekly cycle
     if (settings.weeklyEnabled) {
-      const lastWeekly = settings.lastWeeklySentAt ? new Date(settings.lastWeeklySentAt).getTime() : 0;
-      const daysSinceLastWeekly = (now.getTime() - lastWeekly) / (1000 * 60 * 60 * 24);
+      const targetDay = settings.weeklyReportDay ?? 0;
+      const isTargetDay = istDayOfWeek === targetDay;
 
-      // Trigger if not sent in last 6 days AND it is the scheduled day (e.g. Sunday) AND past target time
-      const isTargetDay = currentDayOfWeek === (settings.weeklyReportDay ?? 0);
-      const isPastTargetTime = currentHour > targetHour || (currentHour === targetHour && currentMinute >= targetMinute);
+      const lastWeeklyDate = settings.lastWeeklySentAt
+        ? istDateFormatter.format(new Date(settings.lastWeeklySentAt))
+        : "";
+      const lastWeeklyTime = settings.lastWeeklySentAt
+        ? new Date(settings.lastWeeklySentAt).getTime()
+        : 0;
+      const daysSinceLastWeekly = lastWeeklyTime
+        ? (now.getTime() - lastWeeklyTime) / (1000 * 60 * 60 * 24)
+        : Infinity;
 
-      if (daysSinceLastWeekly >= 6 && isTargetDay && isPastTargetTime) {
-        console.log("[cron-scheduler] Weekly report is due. Dispatching...");
+      const alreadySentThisWeek =
+        lastWeeklyDate === todayIstDate || daysSinceLastWeekly < 5;
+
+      if (isTargetDay && isPastScheduledTime && !alreadySentThisWeek) {
+        console.log(
+          `[cron-scheduler] Scheduled weekly report is due for day ${targetDay} at ${settings.dailyReportTime || "20:00"} IST. Dispatching...`
+        );
         await sendActivityReportEmail({
           period: "weekly",
           customRecipient: settings.customRecipientEmail || undefined,

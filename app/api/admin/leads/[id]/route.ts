@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { STAGES } from "@/lib/constants";
 import { deleteLeadAdmin, getLeadByIdAdmin, getUserById, updateLeadAdmin } from "@/lib/db";
+import { EMAIL_STAGES, sendStageEmail } from "@/lib/email";
 import { getSession } from "@/lib/session";
 
 export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/admin/leads/[id]">) {
@@ -66,6 +67,14 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/admin/
 
   const lead = await updateLeadAdmin(id, updates);
   if (!lead) return NextResponse.json({ error: "Lead not found." }, { status: 404 });
+
+  // Fire stage email if stage transitioned (non-blocking)
+  if (stage && EMAIL_STAGES.has(stage) && lead.email) {
+    sendStageEmail(lead.name, lead.email, stage).catch((err) =>
+      console.error("[email] Admin stage email failed:", err)
+    );
+  }
+
   return NextResponse.json({ lead });
 }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CLIENT_VISIT_STAGES } from "@/lib/constants";
-import { deleteLead, getLeadById, updateLead } from "@/lib/db";
+import { deleteLead, deleteLeadAdmin, getLeadById, updateLead, updateLeadAdmin } from "@/lib/db";
 import { getSession } from "@/lib/session";
 
 type RouteContext<T extends string> = { params: Promise<Record<string, string>> };
@@ -56,7 +56,9 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/client
   if (notes !== undefined) updates.notes = typeof notes === "string" ? notes : "";
   if (targetVisitStatus !== undefined) updates.clientVisitStatus = targetVisitStatus;
 
-  const updated = await updateLead(id, session.userId, updates);
+  const updated = session.isAdmin
+    ? await updateLeadAdmin(id, updates)
+    : await updateLead(id, session.userId, updates);
   if (!updated) return NextResponse.json({ error: "Client Visit record not found." }, { status: 404 });
 
   return NextResponse.json({ clientVisit: updated });
@@ -67,6 +69,11 @@ export async function DELETE(request: NextRequest, ctx: RouteContext<"/api/clien
   if (!session?.userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await ctx.params;
+  if (session.isAdmin) {
+    await deleteLeadAdmin(id);
+    return NextResponse.json({ success: true });
+  }
+
   const lead = await getLeadById(id, session.userId);
   if (!lead) return NextResponse.json({ error: "Client Visit record not found." }, { status: 404 });
 

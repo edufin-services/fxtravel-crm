@@ -102,10 +102,14 @@ const LeadSchema = new Schema({
   bankProofDoc: { type: LeadDocumentSchema, default: null },
 
   deletedAt: { type: String, default: null, index: true },
+  updatedAt: { type: String, default: null, index: true },
+  confirmedAt: { type: String, default: null, index: true },
 });
 
 LeadSchema.index({ createdAt: -1 });
 LeadSchema.index({ ownerId: 1, createdAt: -1 });
+LeadSchema.index({ confirmedAt: -1 });
+LeadSchema.index({ updatedAt: -1 });
 
 export const LeadModel = models.Lead ?? model("Lead", LeadSchema);
 
@@ -329,6 +333,8 @@ const ReportSettingsSchema = new Schema({
   weeklyReportDay: { type: Number, default: 0 }, // 0 = Sunday
   lastDailySentAt: { type: String, default: null },
   lastWeeklySentAt: { type: String, default: null },
+  lastDailyCronDate: { type: String, default: null }, // "YYYY-MM-DD" IST of automated run
+  lastWeeklyCronDate: { type: String, default: null }, // "YYYY-MM-DD" IST of automated run
   customRecipientEmail: { type: String, default: "" },
 });
 

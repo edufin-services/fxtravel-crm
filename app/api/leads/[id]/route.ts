@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { STAGES } from "@/lib/constants";
-import { deleteLead, getLeadById, getUserById, updateLead } from "@/lib/db";
+import { deleteLead, deleteLeadAdmin, getLeadById, getUserById, updateLead, updateLeadAdmin } from "@/lib/db";
 import { EMAIL_STAGES, sendStageEmail } from "@/lib/email";
 import { getSession } from "@/lib/session";
 
@@ -97,7 +97,9 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/leads/
     if (!STAGES.includes(stage)) return NextResponse.json({ error: "Invalid stage." }, { status: 400 });
 
     updates.stage = stage;
-    const lead = await updateLead(id, session.userId, updates);
+    const lead = session.isAdmin
+      ? await updateLeadAdmin(id, updates)
+      : await updateLead(id, session.userId, updates);
     if (!lead) return NextResponse.json({ error: "Lead not found." }, { status: 404 });
 
     // Fire email (non-blocking)
@@ -110,7 +112,9 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/leads/
     return NextResponse.json({ lead });
   }
 
-  const lead = await updateLead(id, session.userId, updates);
+  const lead = session.isAdmin
+    ? await updateLeadAdmin(id, updates)
+    : await updateLead(id, session.userId, updates);
   if (!lead) return NextResponse.json({ error: "Lead not found." }, { status: 404 });
   return NextResponse.json({ lead });
 }
@@ -119,6 +123,10 @@ export async function DELETE(_request: NextRequest, ctx: RouteContext<"/api/lead
   const session = await getSession();
   if (!session?.userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await ctx.params;
-  await deleteLead(id, session.userId);
+  if (session.isAdmin) {
+    await deleteLeadAdmin(id);
+  } else {
+    await deleteLead(id, session.userId);
+  }
   return NextResponse.json({ success: true });
 }

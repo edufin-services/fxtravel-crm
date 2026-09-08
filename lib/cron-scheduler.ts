@@ -1,5 +1,5 @@
 import "server-only";
-import { getReportSettings } from "./db";
+import { claimDailyCronSlot, claimWeeklyCronSlot, getReportSettings } from "./db";
 import { sendActivityReportEmail } from "./reports";
 
 let isSchedulerRunning = false;
@@ -42,53 +42,40 @@ export async function checkAndDispatchScheduledReports(): Promise<void> {
 
     // 2. Check Daily Report:
     // Only dispatch on or after scheduled time (e.g. 20:00 IST),
-    // and strictly once per calendar day (todayIstDate !== lastDailyDate)
-    if (settings.dailyEnabled) {
-      const lastDailyDate = settings.lastDailySentAt
-        ? istDateFormatter.format(new Date(settings.lastDailySentAt))
-        : "";
-
-      const alreadySentToday = lastDailyDate === todayIstDate;
-
-      if (isPastScheduledTime && !alreadySentToday) {
+    // and strictly once per calendar day using atomic DB claim
+    if (settings.dailyEnabled && isPastScheduledTime) {
+      const claimed = await claimDailyCronSlot(todayIstDate);
+      if (claimed) {
         console.log(
           `[cron-scheduler] Scheduled daily report is due for ${todayIstDate} at ${settings.dailyReportTime || "20:00"} IST. Dispatching...`
         );
         await sendActivityReportEmail({
           period: "daily",
           customRecipient: settings.customRecipientEmail || undefined,
+          isScheduledCron: true,
         });
       }
     }
 
     // 3. Check Weekly Report:
     // Only dispatch on the designated day (default Sunday = 0) on or after scheduled time,
-    // and strictly once per weekly cycle
+    // and strictly once per weekly cycle using atomic DB claim
     if (settings.weeklyEnabled) {
       const targetDay = settings.weeklyReportDay ?? 0;
       const isTargetDay = istDayOfWeek === targetDay;
 
-      const lastWeeklyDate = settings.lastWeeklySentAt
-        ? istDateFormatter.format(new Date(settings.lastWeeklySentAt))
-        : "";
-      const lastWeeklyTime = settings.lastWeeklySentAt
-        ? new Date(settings.lastWeeklySentAt).getTime()
-        : 0;
-      const daysSinceLastWeekly = lastWeeklyTime
-        ? (now.getTime() - lastWeeklyTime) / (1000 * 60 * 60 * 24)
-        : Infinity;
-
-      const alreadySentThisWeek =
-        lastWeeklyDate === todayIstDate || daysSinceLastWeekly < 5;
-
-      if (isTargetDay && isPastScheduledTime && !alreadySentThisWeek) {
-        console.log(
-          `[cron-scheduler] Scheduled weekly report is due for day ${targetDay} at ${settings.dailyReportTime || "20:00"} IST. Dispatching...`
-        );
-        await sendActivityReportEmail({
-          period: "weekly",
-          customRecipient: settings.customRecipientEmail || undefined,
-        });
+      if (isTargetDay && isPastScheduledTime) {
+        const claimed = await claimWeeklyCronSlot(todayIstDate);
+        if (claimed) {
+          console.log(
+            `[cron-scheduler] Scheduled weekly report is due for day ${targetDay} at ${settings.dailyReportTime || "20:00"} IST. Dispatching...`
+          );
+          await sendActivityReportEmail({
+            period: "weekly",
+            customRecipient: settings.customRecipientEmail || undefined,
+            isScheduledCron: true,
+          });
+        }
       }
     }
   } catch (err) {

@@ -126,6 +126,8 @@ export type Lead = {
   visaDocuments?: LeadDocument[];
 
   deletedAt?: string | null;
+  updatedAt?: string | null;
+  confirmedAt?: string | null;
 };
 
 export type Conversation = {
@@ -238,6 +240,8 @@ export type ReportSettings = {
   weeklyReportDay: number;
   lastDailySentAt: string | null;
   lastWeeklySentAt: string | null;
+  lastDailyCronDate?: string | null;
+  lastWeeklyCronDate?: string | null;
   customRecipientEmail?: string;
 };
 
@@ -554,7 +558,14 @@ export async function getLeadByWhatsappId(ownerId: string, whatsappId: string): 
 
 export async function createLead(lead: Omit<Lead, "id" | "createdAt">): Promise<Lead> {
   await dbConnect();
-  const newLead: Lead = { ...lead, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
+  const now = new Date().toISOString();
+  const newLead: Lead = {
+    ...lead,
+    id: crypto.randomUUID(),
+    createdAt: now,
+    updatedAt: now,
+    confirmedAt: lead.stage === "Confirmed" ? now : null,
+  };
   await LeadModel.create(newLead);
 
   // Auto-log new lead activity
@@ -604,7 +615,13 @@ export async function updateLead(
   const prevDoc = await LeadModel.findOne({ id, ownerId });
   const prev = prevDoc ? toPlain<Lead>(prevDoc) : undefined;
 
-  const doc = await LeadModel.findOneAndUpdate({ id, ownerId }, { $set: updates }, { returnDocument: "after" });
+  const now = new Date().toISOString();
+  const setUpdates: Record<string, any> = { ...updates, updatedAt: now };
+  if (updates.stage === "Confirmed" && prev?.stage !== "Confirmed") {
+    setUpdates.confirmedAt = now;
+  }
+
+  const doc = await LeadModel.findOneAndUpdate({ id, ownerId }, { $set: setUpdates }, { returnDocument: "after" });
   if (!doc) return undefined;
   const updated = toPlain<Lead>(doc);
 
@@ -698,7 +715,13 @@ export async function updateLeadAdmin(
   const prevDoc = await LeadModel.findOne({ id });
   const prev = prevDoc ? toPlain<Lead>(prevDoc) : undefined;
 
-  const doc = await LeadModel.findOneAndUpdate({ id }, { $set: updates }, { returnDocument: "after" });
+  const now = new Date().toISOString();
+  const setUpdates: Record<string, any> = { ...updates, updatedAt: now };
+  if (updates.stage === "Confirmed" && prev?.stage !== "Confirmed") {
+    setUpdates.confirmedAt = now;
+  }
+
+  const doc = await LeadModel.findOneAndUpdate({ id }, { $set: setUpdates }, { returnDocument: "after" });
   if (!doc) return undefined;
   const updated = toPlain<Lead>(doc);
 
@@ -1456,6 +1479,50 @@ export async function updateReportSettings(updates: Partial<ReportSettings>): Pr
     { upsert: true }
   );
   return getReportSettings();
+}
+
+/**
+ * Atomically claims the daily automated cron slot for today's IST date.
+ * Returns true if this invocation successfully acquired the lock, false if already claimed.
+ */
+export async function claimDailyCronSlot(todayIstDate: string): Promise<boolean> {
+  await dbConnect();
+  const res = await ReportSettingsModel.findOneAndUpdate(
+    {
+      id: "report_settings",
+      lastDailyCronDate: { $ne: todayIstDate },
+    },
+    {
+      $set: {
+        lastDailyCronDate: todayIstDate,
+        lastDailySentAt: new Date().toISOString(),
+      },
+    },
+    { returnDocument: "after" }
+  );
+  return !!res;
+}
+
+/**
+ * Atomically claims the weekly automated cron slot for this week's IST date.
+ * Returns true if this invocation successfully acquired the lock, false if already claimed.
+ */
+export async function claimWeeklyCronSlot(todayIstDate: string): Promise<boolean> {
+  await dbConnect();
+  const res = await ReportSettingsModel.findOneAndUpdate(
+    {
+      id: "report_settings",
+      lastWeeklyCronDate: { $ne: todayIstDate },
+    },
+    {
+      $set: {
+        lastWeeklyCronDate: todayIstDate,
+        lastWeeklySentAt: new Date().toISOString(),
+      },
+    },
+    { returnDocument: "after" }
+  );
+  return !!res;
 }
 
 export async function logEmailReport(report: Omit<EmailReportLog, "id">): Promise<EmailReportLog> {

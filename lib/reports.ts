@@ -81,9 +81,13 @@ export async function generateActivityReport(
     limit: 1000,
   });
 
-  // 3. Fallback/Augment: Also check LeadModel for leads created or confirmed in window
+  // 3. Fallback/Augment: Also check LeadModel for leads created, confirmed, or updated in window
   const leadsInPeriod = await LeadModel.find({
-    createdAt: { $gte: periodStart, $lte: periodEnd },
+    $or: [
+      { createdAt: { $gte: periodStart, $lte: periodEnd } },
+      { confirmedAt: { $gte: periodStart, $lte: periodEnd } },
+      { updatedAt: { $gte: periodStart, $lte: periodEnd } },
+    ],
     deletedAt: null,
   }).lean();
 
@@ -129,16 +133,32 @@ export async function generateActivityReport(
         stageBreakdown[act.newStage] = (stageBreakdown[act.newStage] || 0) + 1;
       }
       ensureAgent(ownerName).stageChanges += 1;
+
+      // Auto-cross-register if transitioned to Confirmed!
+      if (act.newStage === "Confirmed" && !confirmedLeadsMap.has(act.leadId)) {
+        confirmedLeadsMap.set(act.leadId, item);
+        ensureAgent(ownerName).confirmed += 1;
+      }
     } else if (act.type === "lead_confirmed") {
-      confirmedLeadsMap.set(act.leadId, item);
-      ensureAgent(ownerName).confirmed += 1;
+      if (!confirmedLeadsMap.has(act.leadId)) {
+        confirmedLeadsMap.set(act.leadId, item);
+        ensureAgent(ownerName).confirmed += 1;
+      }
+      // Ensure it is also represented in stage changes if not already
+      if (!stageChangesList.some((s) => s.leadId === act.leadId && s.timestamp === act.timestamp)) {
+        stageChangesList.push(item);
+        stageBreakdown["Confirmed"] = (stageBreakdown["Confirmed"] || 0) + 1;
+        ensureAgent(ownerName).stageChanges += 1;
+      }
     }
   }
 
-  // Augment from LeadModel for any leads created in period not in newLeadsMap
+  // Augment from LeadModel for any leads created or confirmed in period not in maps
   for (const l of leadsInPeriod) {
     const ownerName = userMap.get(l.ownerId) || "Unassigned";
-    if (!newLeadsMap.has(l.id)) {
+    const wasCreatedInPeriod = l.createdAt >= periodStart && l.createdAt <= periodEnd;
+
+    if (wasCreatedInPeriod && !newLeadsMap.has(l.id)) {
       const item: ReportItem = {
         leadId: l.id,
         leadName: l.name,
@@ -156,7 +176,11 @@ export async function generateActivityReport(
       ensureAgent(ownerName).newLeads += 1;
     }
 
-    if (l.stage === "Confirmed" && !confirmedLeadsMap.has(l.id)) {
+    const isConfirmedInPeriod =
+      (l.confirmedAt && l.confirmedAt >= periodStart && l.confirmedAt <= periodEnd) ||
+      (l.stage === "Confirmed" && wasCreatedInPeriod);
+
+    if (isConfirmedInPeriod && !confirmedLeadsMap.has(l.id)) {
       const item: ReportItem = {
         leadId: l.id,
         leadName: l.name,
@@ -167,7 +191,7 @@ export async function generateActivityReport(
         newStage: "Confirmed",
         value: l.value || 0,
         details: `Confirmed Lead (${l.serviceType || "Forex / CRM"})`,
-        timestamp: l.createdAt,
+        timestamp: l.confirmedAt || l.createdAt,
       };
       confirmedLeadsMap.set(l.id, item);
       ensureAgent(ownerName).confirmed += 1;
@@ -534,6 +558,7 @@ export async function sendActivityReportEmail(options?: {
   period?: ReportPeriod;
   customRecipient?: string;
   force?: boolean;
+  isScheduledCron?: boolean;
 }): Promise<{ success: boolean; message: string; reportData?: ActivityReportData }> {
   const period = options?.period || "daily";
   const recipient =

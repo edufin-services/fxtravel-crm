@@ -1032,20 +1032,25 @@ export default function LeadDrawer({
                       .split("\n")
                       .map((l) => l.trim())
                       .filter((t) => {
+                        const lower = t.toLowerCase().replace(/^[•\s*-]+/, "").trim();
                         return (
                           t &&
                           !t.startsWith("🎯") &&
                           !t.startsWith("📌") &&
                           !t.startsWith("📢") &&
                           !t.startsWith("👤") &&
-                          !t.startsWith("Campaign:") &&
-                          !t.startsWith("Adset:") &&
-                          !t.startsWith("Ad:") &&
-                          !t.startsWith("Assigned:") &&
-                          !t.startsWith("Form ID:") &&
-                          !t.includes("Leadgen ID:") &&
-                          !t.startsWith("Meta Lead Ads") &&
-                          !t.startsWith("📋 Form Answers:")
+                          !lower.startsWith("campaign:") &&
+                          !lower.startsWith("adset:") &&
+                          !lower.startsWith("ad:") &&
+                          !lower.startsWith("assigned:") &&
+                          !lower.startsWith("form id:") &&
+                          !lower.includes("leadgen id:") &&
+                          !lower.startsWith("meta lead ads") &&
+                          !lower.startsWith("📋 form answers:") &&
+                          !lower.startsWith("inbox") &&
+                          !lower.includes("inbox_url") &&
+                          !lower.includes("business.facebook.com") &&
+                          !lower.includes("nav_ref=thread_view")
                         );
                       })
                       .map((line) => {

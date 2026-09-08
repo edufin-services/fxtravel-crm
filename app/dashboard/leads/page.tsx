@@ -8,6 +8,7 @@ import LeadDrawer, { type DrawerLead, type LeadDocument, type LeadUpdate } from 
 import SetReminderModal from "./SetReminderModal";
 import ViewNoteModal, { getNoteStatus } from "./ViewNoteModal";
 import { playReminderChime, sendBrowserNotification } from "@/lib/sound";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 
 type Lead = DrawerLead & { value: number };
 
@@ -1289,11 +1290,17 @@ function ConfirmStageModal({
   leadName: string; from: Stage; to: Stage; initialValue?: number; loading: boolean;
   onConfirm: (revenue?: number) => void; onCancel: () => void;
 }) {
+  useBodyScrollLock();
   const [revenue, setRevenue] = useState<number | "">(initialValue > 0 ? initialValue : "");
   const isConfirmed = to === "Confirmed";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onCancel}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overscroll-contain"
+      onClick={onCancel}
+      onWheel={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+    >
       <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl ring-1 ring-zinc-200" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 pt-5 pb-4">
           <div className={`flex h-10 w-10 items-center justify-center rounded-full mb-3 ${isConfirmed ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"}`}>
@@ -1387,6 +1394,7 @@ function AddDealModal({
     name: string; channel: Channel; stage: Stage; phone: string; services?: string[]; notes?: string; value?: number;
   }) => Promise<{ error?: string }>;
 }) {
+  useBodyScrollLock();
   const [name, setName] = useState("");
   const [channel, setChannel] = useState<Channel>(CHANNELS[0]);
   const [phone, setPhone] = useState("");

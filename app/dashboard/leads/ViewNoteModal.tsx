@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { DrawerLead } from "./LeadDrawer";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 
 export type NoteStatus = {
   hasUserNote: boolean;
@@ -35,24 +36,36 @@ export function extractFormAndUserNotes(
       const trimmed = rawLine.trim();
       if (!trimmed) continue;
 
-      // Discard all campaign, ad, adset, assigned, form ID, leadgen ID metadata
+      const cleanLine = trimmed.replace(/^[•\s*-]+/, "").trim();
+      const lowerClean = cleanLine.toLowerCase();
+
+      // Discard all campaign, ad, adset, assigned, form ID, leadgen ID metadata, and inbox url/links
       if (
         trimmed.startsWith("🎯") ||
         trimmed.startsWith("📌") ||
         trimmed.startsWith("📢") ||
         trimmed.startsWith("👤") ||
-        trimmed.startsWith("Campaign:") ||
-        trimmed.startsWith("Adset:") ||
-        trimmed.startsWith("Ad:") ||
-        trimmed.startsWith("Assigned:") ||
-        trimmed.startsWith("Form ID:") ||
-        trimmed.includes("Leadgen ID:") ||
-        trimmed.startsWith("Meta Lead Ads") ||
         trimmed.startsWith("⚠️") ||
         trimmed.startsWith("👉") ||
         trimmed.startsWith("[Google Sheets Ingestion]") ||
-        trimmed.startsWith("Sheet Row:") ||
-        trimmed.startsWith("Requested Service:")
+        lowerClean.startsWith("campaign:") ||
+        lowerClean.startsWith("adset:") ||
+        lowerClean.startsWith("ad:") ||
+        lowerClean.startsWith("assigned:") ||
+        lowerClean.startsWith("form id:") ||
+        lowerClean.includes("leadgen id:") ||
+        lowerClean.startsWith("meta lead ads") ||
+        lowerClean.startsWith("sheet row:") ||
+        lowerClean.startsWith("requested service:") ||
+        lowerClean.startsWith("inbox url:") ||
+        lowerClean.startsWith("inbox_url:") ||
+        lowerClean.startsWith("inbox link:") ||
+        lowerClean.startsWith("inbox:") ||
+        lowerClean.startsWith("inboxurl:") ||
+        lowerClean.startsWith("thread url:") ||
+        lowerClean.startsWith("thread_url:") ||
+        lowerClean.includes("business.facebook.com") ||
+        lowerClean.includes("nav_ref=thread_view")
       ) {
         inFormAnswersBlock = false;
         continue;
@@ -132,7 +145,11 @@ function formatQuestionKey(key: string): string {
 }
 
 function formatAnswerVal(val: string): string {
-  return val
+  const trimmed = val.trim();
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+  return trimmed
     .replace(/[_]+/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase())
     .trim();
@@ -147,6 +164,8 @@ export default function ViewNoteModal({
   onClose: () => void;
   onSaveNote: (leadId: string, note: string, formNote?: string) => Promise<void>;
 }) {
+  useBodyScrollLock();
+
   const { formNoteText, userNoteText } = useMemo(
     () => extractFormAndUserNotes(lead.notes, lead.formNotes),
     [lead.notes, lead.formNotes]
@@ -171,6 +190,21 @@ export default function ViewNoteModal({
         const colonIdx = clean.indexOf(":");
         const qRaw = clean.slice(0, colonIdx);
         const aRaw = clean.slice(colonIdx + 1);
+
+        const qNorm = qRaw.toLowerCase().replace(/[\s_-]+/g, "");
+        const aLower = aRaw.toLowerCase();
+
+        // Discard any inbox link/url or facebook thread links
+        if (
+          qNorm.includes("inbox") ||
+          qNorm.includes("thread") ||
+          aLower.includes("business.facebook.com") ||
+          aLower.includes("facebook.com/latest") ||
+          aLower.includes("nav_ref=thread_view")
+        ) {
+          continue;
+        }
+
         const q = formatQuestionKey(qRaw);
         const a = formatAnswerVal(aRaw);
         if (q) {
@@ -178,6 +212,14 @@ export default function ViewNoteModal({
         }
       } else {
         const clean = line.replace(/^[•\s*-]+/, "").trim();
+        const cleanLower = clean.toLowerCase();
+        if (
+          cleanLower.includes("inbox") ||
+          cleanLower.includes("business.facebook.com") ||
+          cleanLower.includes("thread_view")
+        ) {
+          continue;
+        }
         if (clean) {
           list.push({ q: clean, a: "" });
         }
@@ -198,6 +240,8 @@ export default function ViewNoteModal({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs overscroll-contain animate-fadeIn"
       onClick={onClose}
+      onWheel={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
     >
       <div
         className="w-full max-w-lg rounded-2xl bg-white shadow-2xl ring-1 ring-zinc-200/90 overflow-hidden flex flex-col max-h-[90vh]"
@@ -229,7 +273,10 @@ export default function ViewNoteModal({
         </div>
 
         {/* Modal Scrollable Body */}
-        <div className="p-6 space-y-4 overflow-y-auto">
+        <div
+          className="p-6 space-y-4 overflow-y-auto overscroll-contain"
+          onWheel={(e) => e.stopPropagation()}
+        >
           {/* ── Compact Customer Form Answers ── */}
           {answers.length > 0 && (
             <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 px-3.5 py-2.5 shadow-2xs">

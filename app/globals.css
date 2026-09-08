@@ -31,8 +31,10 @@ body {
   overflow-x: hidden;
 }
 
+html.modal-open,
 body.modal-open {
-  overflow: hidden;
+  overflow: hidden !important;
+  overscroll-behavior: contain !important;
 }
 
 /* Thin, modern scrollbars */

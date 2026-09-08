@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 
 interface GoogleSheetsModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ export default function GoogleSheetsModal({
   onClose,
   defaultToken = "fx_sheets_sync_2026",
 }: GoogleSheetsModalProps) {
+  useBodyScrollLock(isOpen);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [copiedToken, setCopiedToken] = useState(false);
   const [copiedScript, setCopiedScript] = useState(false);
@@ -222,7 +224,11 @@ function createSyncTrigger() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-sm animate-fade-in">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-sm animate-fade-in overscroll-contain"
+      onWheel={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+    >
       <div className="relative w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl bg-white shadow-2xl border border-zinc-200/80 overflow-hidden">
         
         {/* Modal Header */}

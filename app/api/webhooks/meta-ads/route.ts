@@ -174,12 +174,32 @@ export async function POST(request: NextRequest) {
                   "city",
                   "location",
                   "currentcity",
+                  "inboxurl",
+                  "inboxlink",
+                  "inbox",
+                  "fbinbox",
+                  "threadurl",
+                  "threadlink",
                 ].includes(normName);
 
+                if (normName.includes("inbox") || normName.includes("thread")) {
+                  continue;
+                }
+
                 if (!isStandardField && Array.isArray(field.values) && field.values.length > 0) {
+                  const valStr = field.values.join(", ");
+                  const valLower = valStr.toLowerCase();
+                  if (
+                    valLower.includes("business.facebook.com") ||
+                    valLower.includes("facebook.com/latest") ||
+                    valLower.includes("nav_ref=thread_view")
+                  ) {
+                    continue;
+                  }
+
                   const cleanName = field.name.replace(/_/g, " ").replace(/[?:]+$/, "").trim();
                   const qFormatted = cleanName ? cleanName.charAt(0).toUpperCase() + cleanName.slice(1) : cleanName;
-                  const cleanVal = field.values.join(", ").replace(/_/g, " ").trim();
+                  const cleanVal = valStr.replace(/_/g, " ").trim();
                   extraFormFields.push(`${qFormatted}?: ${cleanVal}`);
                 }
               }

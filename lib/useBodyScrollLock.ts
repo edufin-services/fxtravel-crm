@@ -16,20 +16,26 @@ export function useBodyScrollLock(enabled: boolean = true) {
       if (activeModals <= 0) {
         activeModals = 0;
         document.body.style.overflow = "";
+        document.documentElement.style.overflow = "";
         document.body.classList.remove("modal-open");
+        document.documentElement.classList.remove("modal-open");
       }
       return;
     }
 
     activeModals++;
     document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
     document.body.classList.add("modal-open");
+    document.documentElement.classList.add("modal-open");
 
     return () => {
       activeModals = Math.max(0, activeModals - 1);
       if (activeModals === 0) {
         document.body.style.overflow = "";
+        document.documentElement.style.overflow = "";
         document.body.classList.remove("modal-open");
+        document.documentElement.classList.remove("modal-open");
       }
     };
   }, [enabled]);

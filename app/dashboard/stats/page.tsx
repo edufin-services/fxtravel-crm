@@ -9,17 +9,19 @@ export const dynamic = "force-dynamic";
 const channelColor: Record<string, string> = {
   WhatsApp: "bg-emerald-500",
   Instagram: "bg-pink-500",
+  Facebook: "bg-blue-600",
   Ads: "bg-purple-600",
   Email: "bg-blue-500",
   "Referral/Others": "bg-amber-500",
 };
 
-const channelBg: Record<string, { badge: string; icon: string }> = {
-  WhatsApp: { badge: "bg-emerald-50 text-emerald-700 border-emerald-200/80", icon: "💬" },
-  Instagram: { badge: "bg-pink-50 text-pink-700 border-pink-200/80", icon: "📸" },
-  Ads: { badge: "bg-purple-50 text-purple-700 border-purple-200/80", icon: "📢" },
-  Email: { badge: "bg-blue-50 text-blue-700 border-blue-200/80", icon: "✉️" },
-  "Referral/Others": { badge: "bg-amber-50 text-amber-700 border-amber-200/80", icon: "🤝" },
+const channelBg: Record<string, string> = {
+  WhatsApp: "bg-emerald-50 text-emerald-700 border-emerald-200/80",
+  Instagram: "bg-pink-50 text-pink-700 border-pink-200/80",
+  Facebook: "bg-blue-50 text-blue-700 border-blue-200/80",
+  Ads: "bg-purple-50 text-purple-700 border-purple-200/80",
+  Email: "bg-blue-50 text-blue-700 border-blue-200/80",
+  "Referral/Others": "bg-amber-50 text-amber-700 border-amber-200/80",
 };
 
 const stageColor: Record<string, string> = {
@@ -168,8 +170,8 @@ export default async function StatsPage() {
   const channelCounts = CHANNELS.map((ch) => ({
     name: ch,
     count: leads.filter((l) => l.channel === ch).length,
-    color: channelColor[ch],
-    badge: channelBg[ch] ?? { badge: "bg-zinc-100 text-zinc-700", icon: "📌" },
+    color: channelColor[ch] ?? "bg-zinc-500",
+    badge: channelBg[ch] ?? "bg-zinc-100 text-zinc-700 border-zinc-200",
     pct: leads.length > 0 ? Math.round((leads.filter((l) => l.channel === ch).length / leads.length) * 100) : 0,
   }));
   const maxChannel = Math.max(1, ...channelCounts.map((c) => c.count));
@@ -293,8 +295,7 @@ export default async function StatsPage() {
             {channelCounts.map((ch) => (
               <div key={ch.name} className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs font-bold">
-                  <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold ${ch.badge.badge}`}>
-                    <span>{ch.badge.icon}</span>
+                  <span className={`inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-bold ${ch.badge}`}>
                     {ch.name}
                   </span>
                   <span className="text-zinc-900 font-extrabold">

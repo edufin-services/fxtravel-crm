@@ -257,10 +257,14 @@ export default function EventNotifications() {
             <div className="flex gap-2">
               <button
                 onClick={() => snooze(task.id, 15)}
-                className="rounded-2xl border border-zinc-200 px-3.5 py-3 text-sm font-semibold text-zinc-600 hover:bg-zinc-50 transition-colors"
+                className="flex items-center gap-1.5 rounded-2xl border border-zinc-200 px-3.5 py-3 text-sm font-semibold text-zinc-600 hover:bg-zinc-50 transition-colors"
                 title="Snooze for 15 minutes"
               >
-                ⏰ Snooze
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                Snooze
               </button>
               <button
                 onClick={() => markDone(task.id)}

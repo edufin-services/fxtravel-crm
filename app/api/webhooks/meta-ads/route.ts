@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   const expectedToken = process.env.META_VERIFY_TOKEN || "fx_meta_leads_token_2026";
 
   if (mode === "subscribe" && token === expectedToken) {
-    console.log("✅ Meta Webhook verified successfully!");
+    console.log("Meta Webhook verified successfully!");
     return new NextResponse(challenge, {
       status: 200,
       headers: { "Content-Type": "text/plain" },

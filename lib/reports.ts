@@ -365,7 +365,7 @@ export function buildReportEmailHtml(data: ActivityReportData): string {
 <div class="wrapper">
   <!-- Header -->
   <div class="header">
-    <div class="header-badge">${isWeekly ? "📅 Weekly Digest" : "⚡ Daily Digest"}</div>
+    <div class="header-badge">${isWeekly ? "Weekly Digest" : "Daily Digest"}</div>
     <h1>${data.periodLabel}</h1>
     <p>Coverage: <strong>${startStr}</strong> to <strong>${endStr}</strong> (IST)</p>
   </div>
@@ -383,7 +383,7 @@ export function buildReportEmailHtml(data: ActivityReportData): string {
           <div class="kpi-label">Stage Changes</div>
         </td>
         <td class="kpi-card" style="width:25%;">
-          <div class="kpi-num" style="color:#059669;">🎯 ${data.stats.totalConfirmed}</div>
+          <div class="kpi-num" style="color:#059669;">${data.stats.totalConfirmed}</div>
           <div class="kpi-label">Confirmed</div>
         </td>
         <td class="kpi-card" style="width:25%;">
@@ -395,7 +395,7 @@ export function buildReportEmailHtml(data: ActivityReportData): string {
 
     <!-- Section 1: Confirmed Leads -->
     <div style="margin-top:20px;">
-      <h3 style="font-size:14px;font-weight:800;color:#047857;margin:0 0 10px 0;">🎯 Confirmed Leads &amp; Orders (${data.confirmedLeads.length})</h3>
+      <h3 style="font-size:14px;font-weight:800;color:#047857;margin:0 0 10px 0;">Confirmed Leads &amp; Orders (${data.confirmedLeads.length})</h3>
       ${
         data.confirmedLeads.length > 0
           ? `<table class="table-box">
@@ -417,7 +417,7 @@ export function buildReportEmailHtml(data: ActivityReportData): string {
 
     <!-- Section 2: Stage Changes -->
     <div style="margin-top:24px;">
-      <h3 style="font-size:14px;font-weight:800;color:#18181b;margin:0 0 10px 0;">🔄 Lead Stage Progressions (${data.stageChanges.length})</h3>
+      <h3 style="font-size:14px;font-weight:800;color:#18181b;margin:0 0 10px 0;">Lead Stage Progressions (${data.stageChanges.length})</h3>
       ${
         data.stageChanges.length > 0
           ? `<table class="table-box">
@@ -438,7 +438,7 @@ export function buildReportEmailHtml(data: ActivityReportData): string {
 
     <!-- Section 3: New Leads Created -->
     <div style="margin-top:24px;">
-      <h3 style="font-size:14px;font-weight:800;color:#18181b;margin:0 0 10px 0;">📥 Newly Acquired Inquiries (${data.newLeads.length})</h3>
+      <h3 style="font-size:14px;font-weight:800;color:#18181b;margin:0 0 10px 0;">Newly Acquired Inquiries (${data.newLeads.length})</h3>
       ${
         data.newLeads.length > 0
           ? `<table class="table-box">
@@ -462,7 +462,7 @@ export function buildReportEmailHtml(data: ActivityReportData): string {
     ${
       Object.keys(data.stats.agentBreakdown).length > 0
         ? `<div style="margin-top:24px;">
-            <h3 style="font-size:14px;font-weight:800;color:#18181b;margin:0 0 10px 0;">📊 Executive Performance Breakdown</h3>
+            <h3 style="font-size:14px;font-weight:800;color:#18181b;margin:0 0 10px 0;">Executive Performance Breakdown</h3>
             <table class="table-box">
               <thead>
                 <tr>

@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
       lead.stage.toLowerCase().includes(query)
     ) {
       const assigned = agentMap[lead.ownerId] || lead.assignAgent || "Unassigned";
-      const locText = lead.city ? `📍 ${lead.city} · ` : "";
+      const locText = lead.city ? `${lead.city} · ` : "";
       results.push({
         id: lead.id,
         type: "lead",

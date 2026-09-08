@@ -1316,7 +1316,7 @@ function ConfirmStageModal({
             )}
           </div>
           <h3 className="text-base font-bold text-zinc-900 mb-1">
-            {isConfirmed ? "Deal Confirmed! 🎉" : "Move to next stage?"}
+            {isConfirmed ? "Deal Confirmed!" : "Move to next stage?"}
           </h3>
           <p className="text-sm text-zinc-500">
             {isConfirmed ? (

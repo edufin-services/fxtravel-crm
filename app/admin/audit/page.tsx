@@ -29,7 +29,7 @@ export default async function AdminAuditPage() {
       actionLabel = `Stage Transition (${act.previousStage || "Init"} ➔ ${act.newStage || "New"})`;
       badgeColor = "bg-purple-100 text-purple-800 border-purple-200";
     } else if (act.type === "lead_confirmed") {
-      actionLabel = "🎯 Lead Confirmed / Deal Won";
+      actionLabel = "Lead Confirmed / Deal Won";
       badgeColor = "bg-emerald-100 text-emerald-800 border-emerald-200";
     } else if (act.type === "lead_deleted") {
       actionLabel = "Lead Deleted / Closed";
@@ -53,7 +53,7 @@ export default async function AdminAuditPage() {
   if (auditLogs.length === 0) {
     auditLogs = leads.slice(0, 30).map((lead, idx) => ({
       id: `audit-${lead.id}-${idx}`,
-      action: lead.stage === "Confirmed" ? "🎯 Lead Confirmed" : "Lead Entry Processed",
+      action: lead.stage === "Confirmed" ? "Lead Confirmed" : "Lead Entry Processed",
       user: userMap.get(lead.ownerId) || "System Executive",
       details: `${lead.name} · ${lead.channel} · Stage: ${lead.stage}`,
       timestamp: lead.createdAt,

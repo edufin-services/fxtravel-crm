@@ -116,7 +116,7 @@ function syncRowToCRM(e) {
       if (resData.status === "success" || resData.status === "ignored") {
         const leadRef = resData.leadId ? " (#" + resData.leadId.slice(0, 8) + ")" : "";
         sheet.getRange(rowNumber, statusColIndex)
-          .setValue("Synced ✅" + leadRef)
+          .setValue("Synced" + leadRef)
           .setFontColor("#137333");
       } else {
         sheet.getRange(rowNumber, statusColIndex)
@@ -125,7 +125,7 @@ function syncRowToCRM(e) {
       }
     } catch (err) {
       sheet.getRange(rowNumber, statusColIndex)
-        .setValue("Failed ⚠️: " + err.message)
+        .setValue("Failed: " + err.message)
         .setFontColor("#b06000");
     }
   }
@@ -158,7 +158,7 @@ function createSyncTrigger() {
     .onEdit()
     .create();
 
-  SpreadsheetApp.getUi().alert("Real-time CRM Sync Trigger activated successfully! 🚀");
+  SpreadsheetApp.getUi().alert("Real-time CRM Sync Trigger activated successfully!");
 }
 `;
 
@@ -234,8 +234,14 @@ function createSyncTrigger() {
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-zinc-100 bg-linear-to-r from-emerald-50/50 via-white to-teal-50/30 px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20 text-xl font-bold">
-              📊
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="8" y1="13" x2="16" y2="13" />
+                <line x1="8" y1="17" x2="16" y2="17" />
+                <line x1="10" y1="9" x2="8" y2="9" />
+              </svg>
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -296,7 +302,11 @@ function createSyncTrigger() {
                 : "border-transparent text-zinc-500 hover:text-zinc-800"
             }`}
           >
-            <span>📜</span> Google Apps Script Code
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="16 18 22 12 16 6" />
+              <polyline points="8 6 2 12 8 18" />
+            </svg>
+            Google Apps Script Code
           </button>
           <button
             onClick={() => setActiveTab("guide")}
@@ -306,7 +316,11 @@ function createSyncTrigger() {
                 : "border-transparent text-zinc-500 hover:text-zinc-800"
             }`}
           >
-            <span>📖</span> 4-Step Setup Guide
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
+            4-Step Setup Guide
           </button>
           <button
             onClick={() => setActiveTab("test")}
@@ -316,7 +330,10 @@ function createSyncTrigger() {
                 : "border-transparent text-zinc-500 hover:text-zinc-800"
             }`}
           >
-            <span>⚡</span> Test Ingestion Simulator
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+            </svg>
+            Test Ingestion Simulator
           </button>
         </div>
 
@@ -337,7 +354,11 @@ function createSyncTrigger() {
                   onClick={() => copyToClipboard(appsScriptCode, "script")}
                   className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 transition active:scale-95"
                 >
-                  <span>{copiedScript ? "✓ Copied to Clipboard!" : "📋 Copy Full Script"}</span>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                  </svg>
+                  <span>{copiedScript ? "Copied to Clipboard!" : "Copy Full Script"}</span>
                 </button>
               </div>
 
@@ -346,7 +367,11 @@ function createSyncTrigger() {
               </div>
 
               <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-xs text-blue-900 flex items-start gap-2.5">
-                <span className="text-base">💡</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-700 shrink-0 mt-0.5">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="16" x2="12" y2="12" />
+                  <line x1="12" y1="8" x2="12.01" y2="8" />
+                </svg>
                 <div>
                   <span className="font-bold">Column Headers Support:</span> The script automatically maps any columns named:
                   <div className="mt-1 flex flex-wrap gap-1.5 font-mono text-[10px]">
@@ -395,7 +420,7 @@ function createSyncTrigger() {
                     <h4 className="text-xs font-bold text-zinc-900">Run 1-Click Trigger Setup</h4>
                   </div>
                   <p className="text-[11px] text-zinc-600">
-                    In the Apps Script toolbar, select the function <code className="text-emerald-700 font-mono font-bold bg-white px-1.5 py-0.5 rounded border border-zinc-200">createSyncTrigger</code> from the dropdown and click <strong>▶ Run</strong>. Grant permissions once.
+                    In the Apps Script toolbar, select the function <code className="text-emerald-700 font-mono font-bold bg-white px-1.5 py-0.5 rounded border border-zinc-200">createSyncTrigger</code> from the dropdown and click <strong>Run</strong>. Grant permissions once.
                   </p>
                 </div>
 
@@ -405,13 +430,15 @@ function createSyncTrigger() {
                     <h4 className="text-xs font-bold text-zinc-900">Enjoy Automatic 0-Second Sync!</h4>
                   </div>
                   <p className="text-[11px] text-zinc-600">
-                    Any row added manually or via Google Forms will immediately sync to CRM, and a new column <strong className="text-emerald-700">CRM Status</strong> will confirm <code className="bg-emerald-100 text-emerald-800 px-1 py-0.5 rounded font-mono">Synced ✅</code>.
+                    Any row added manually or via Google Forms will immediately sync to CRM, and a new column <strong className="text-emerald-700">CRM Status</strong> will confirm <code className="bg-emerald-100 text-emerald-800 px-1 py-0.5 rounded font-mono">Synced</code>.
                   </p>
                 </div>
               </div>
 
               <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-900 flex items-start gap-2">
-                <span className="text-base">🛡️</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-700 shrink-0 mt-0.5">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
                 <p>
                   <strong>Smart Deduplication:</strong> The CRM will automatically skip duplicate leads with the same phone number submitted within 12 hours, ensuring accidental double-edits on a sheet won&apos;t duplicate leads.
                 </p>
@@ -520,7 +547,7 @@ function createSyncTrigger() {
                     disabled={testLoading}
                     className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 transition disabled:opacity-50"
                   >
-                    {testLoading ? "Sending..." : "🚀 Ingest Test Lead"}
+                    {testLoading ? "Sending..." : "Ingest Test Lead"}
                   </button>
                 </div>
               </form>

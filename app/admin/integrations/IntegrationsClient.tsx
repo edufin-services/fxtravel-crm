@@ -9,7 +9,7 @@ interface IntegrationItem {
   status: string;
   endpoint: string;
   desc: string;
-  icon: string;
+  icon: React.ReactNode;
   badge: string;
   isActionable?: boolean;
   actionLabel?: string;
@@ -29,7 +29,15 @@ export default function IntegrationsClient({
       status: "Active",
       endpoint: "/api/webhooks/google-sheets",
       desc: "Automatically sync new rows, leads & Google Form submissions directly into CRM",
-      icon: "📊",
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-700">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="8" y1="13" x2="16" y2="13" />
+          <line x1="8" y1="17" x2="16" y2="17" />
+          <line x1="10" y1="9" x2="8" y2="9" />
+        </svg>
+      ),
       badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
       isActionable: true,
       actionLabel: "Setup & Apps Script Code",
@@ -40,7 +48,11 @@ export default function IntegrationsClient({
       status: "Active",
       endpoint: "/api/webhooks/justdial",
       desc: "Automatic lead capture for Money Transfer, Forex & International Tours",
-      icon: "📞",
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-700">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+        </svg>
+      ),
       badge: "bg-amber-50 text-amber-700 border-amber-200",
     },
     {
@@ -49,7 +61,11 @@ export default function IntegrationsClient({
       status: "Active",
       endpoint: "/api/webhooks/whatsapp",
       desc: "Incoming lead auto-capture & live message delivery",
-      icon: "💬",
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-700">
+          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+        </svg>
+      ),
       badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
     },
     {
@@ -58,7 +74,12 @@ export default function IntegrationsClient({
       status: "Active",
       endpoint: "/api/webhooks/meta-ads",
       desc: "Instant lead ingestion from sponsored ads campaigns",
-      icon: "📢",
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-700">
+          <path d="m3 11 18-5v12L3 13v-2z" />
+          <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
+        </svg>
+      ),
       badge: "bg-purple-50 text-purple-700 border-purple-200",
     },
     {
@@ -67,14 +88,19 @@ export default function IntegrationsClient({
       status: "Connected",
       endpoint: "/api/account/notifications",
       desc: "Outbound proposal emails and system alerts",
-      icon: "✉️",
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-700">
+          <rect width="20" height="16" x="2" y="4" rx="2" />
+          <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+        </svg>
+      ),
       badge: "bg-blue-50 text-blue-700 border-blue-200",
     },
   ];
 
   return (
     <div className="space-y-6 pb-8">
-      {/* Header */}
+      {/* Page Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-200/80 pb-4">
         <div>
           <div className="flex items-center gap-2.5">
@@ -126,9 +152,12 @@ export default function IntegrationsClient({
               {item.isActionable ? (
                 <button
                   onClick={() => setIsGoogleSheetsModalOpen(true)}
-                  className="flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1 rounded-lg border border-emerald-200 transition cursor-pointer"
+                  className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-200 transition cursor-pointer"
                 >
-                  <span>⚡</span> {item.actionLabel || "Configure"}
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                  </svg>
+                  {item.actionLabel || "Configure"}
                 </button>
               ) : (
                 <span className="text-xs font-bold text-emerald-700">Healthy (200 OK)</span>

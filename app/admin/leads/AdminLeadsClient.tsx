@@ -473,7 +473,7 @@ export default function AdminLeadsClient({
           <h1 className="text-2xl font-black text-zinc-900 tracking-tight">All Leads</h1>
           <p className="mt-0.5 text-sm text-zinc-400">
             {isFiltered ? `${filteredLeads.length} of ${leads.length} leads` : `${leads.length} leads`}
-            {locationFilter !== "All Locations" ? ` · 📍 ${locationFilter}` : " across all users"} &middot; Pipeline: {fmt(isFiltered ? filteredTotalValue : totalValue)}
+            {locationFilter !== "All Locations" ? ` · ${locationFilter}` : " across all users"} &middot; Pipeline: {fmt(isFiltered ? filteredTotalValue : totalValue)}
           </p>
         </div>
 
@@ -1181,7 +1181,7 @@ function ConfirmStageModal({
             )}
           </div>
           <h3 className="text-base font-bold text-zinc-900 mb-1">
-            {isConfirmed ? "Deal Confirmed! 🎉" : "Move to next stage?"}
+            {isConfirmed ? "Deal Confirmed!" : "Move to next stage?"}
           </h3>
           <p className="text-sm text-zinc-500">
             {isConfirmed ? (

@@ -301,7 +301,7 @@ export default function ViewNoteModal({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-xs font-black uppercase tracking-wider text-zinc-700">
-                📝 Enquiry Notes &amp; Remarks
+                Enquiry Notes &amp; Remarks
               </label>
               <span className="text-[11px] text-zinc-400 font-medium">
                 Internal CRM remarks

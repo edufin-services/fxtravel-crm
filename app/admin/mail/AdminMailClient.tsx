@@ -198,7 +198,9 @@ export default function AdminMailClient({ initialSettings, initialLogs, envRecip
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 border border-blue-200/60 font-bold">
-                ⚡
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                </svg>
               </div>
               <div>
                 <h3 className="text-sm font-black text-zinc-900">Daily Lead &amp; Pipeline Digest</h3>
@@ -243,7 +245,12 @@ export default function AdminMailClient({ initialSettings, initialLogs, envRecip
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-50 text-purple-600 border border-purple-200/60 font-bold">
-                📅
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
               </div>
               <div>
                 <h3 className="text-sm font-black text-zinc-900">Weekly Executive Summary</h3>
@@ -400,7 +407,7 @@ export default function AdminMailClient({ initialSettings, initialLogs, envRecip
                     <td className="px-4 py-3 font-mono text-[11px] text-zinc-700">{log.recipient}</td>
                     <td className="px-4 py-3 text-center font-bold text-zinc-900">+{log.leadCount}</td>
                     <td className="px-4 py-3 text-center font-bold text-blue-600">{log.stageChangeCount}</td>
-                    <td className="px-4 py-3 text-center font-bold text-emerald-700">🎯 {log.confirmedCount}</td>
+                    <td className="px-4 py-3 text-center font-bold text-emerald-700">{log.confirmedCount}</td>
                     <td className="px-4 py-3">
                       <span
                         className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${

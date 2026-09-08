@@ -227,9 +227,37 @@ export default function AdminProfilePage() {
       {/* Tabs Navigation */}
       <div className="flex border-b border-zinc-200 gap-6 text-xs font-bold">
         {[
-          { id: "personal", label: "Admin Profile", icon: "👤" },
-          { id: "company", label: "Organization Info", icon: "🏢" },
-          { id: "security", label: "Security & Passwords", icon: "🔒" },
+          {
+            id: "personal",
+            label: "Admin Profile",
+            icon: (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            ),
+          },
+          {
+            id: "company",
+            label: "Organization Info",
+            icon: (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
+                <path d="M9 22v-4h6v4" />
+                <path d="M8 6h.01M16 6h.01M8 10h.01M16 10h.01M8 14h.01M16 14h.01" />
+              </svg>
+            ),
+          },
+          {
+            id: "security",
+            label: "Security & Passwords",
+            icon: (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            ),
+          },
         ].map((tab) => (
           <button
             key={tab.id}

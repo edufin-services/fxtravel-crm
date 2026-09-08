@@ -1355,7 +1355,7 @@ export default function LeadDrawer({
                   )}
                 </div>
                 <h3 className="text-base font-bold text-zinc-900 mb-1">
-                  {stage === "Confirmed" ? "Deal Confirmed! 🎉" : "Move to next stage?"}
+                  {stage === "Confirmed" ? "Deal Confirmed!" : "Move to next stage?"}
                 </h3>
                 <p className="text-sm text-zinc-500">
                   {stage === "Confirmed" ? (

@@ -12,17 +12,17 @@ type Template = { subject: string; heading: string; body: string };
 const STAGE_TEMPLATES: Record<string, Template> = {
   Connected: {
     subject: "Application Update - Connected",
-    heading: "Connected Stage 🤝",
+    heading: "Connected Stage",
     body: "Your application is now in the <strong>Connected</strong> stage. Our team will contact you with details.",
   },
   Confirmed: {
     subject: "Congratulations - Order Confirmed!",
-    heading: "Order Confirmed 🎯",
+    heading: "Order Confirmed",
     body: "Congratulations! Your order/application has reached the <strong>Confirmed</strong> stage.",
   },
   Closed: {
     subject: "Order Closed - Completed!",
-    heading: "Order Closed ✅",
+    heading: "Order Closed",
     body: "Your order/application has reached the final <strong>Closed</strong> stage.",
   },
 };

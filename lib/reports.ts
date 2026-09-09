@@ -625,12 +625,14 @@ export async function sendActivityReportEmail(options?: {
   const user =
     process.env.EMAIL_USER?.trim() ||
     localEnv.EMAIL_USER?.trim() ||
-    settings.smtpUser?.trim();
+    settings.smtpUser?.trim() ||
+    "aayush.dubey@fxpertise.in";
 
   const pass =
     process.env.EMAIL_PASS?.trim() ||
     localEnv.EMAIL_PASS?.trim() ||
-    settings.smtpPass?.trim();
+    settings.smtpPass?.trim() ||
+    "hozp tupo vyxp wxyl";
 
   const port = Number(
     process.env.EMAIL_PORT ||

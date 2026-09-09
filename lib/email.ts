@@ -93,16 +93,21 @@ function buildText(name: string, stage: string): string {
   return `Dear ${name},\n\n${body}\n\nCurrent Stage: ${stage}\n\nIf you have any questions, please contact your counsellor.\n\nBest regards,\n${fromName}`;
 }
 
+function getSmtpConfig() {
+  const host = process.env.EMAIL_HOST?.trim() || "smtp.gmail.com";
+  const user = process.env.EMAIL_USER?.trim() || "aayush.dubey@fxpertise.in";
+  const pass = process.env.EMAIL_PASS?.trim() || "hozp tupo vyxp wxyl";
+  const port = Number(process.env.EMAIL_PORT ?? 587);
+  const fromName = process.env.EMAIL_FROM_NAME?.trim() || "Fxpertise Travel CRM";
+  return { host, user, pass, port, fromName };
+}
+
 export async function sendStageEmail(
   leadName: string,
   leadEmail: string,
   newStage: string
 ): Promise<void> {
-  const host = process.env.EMAIL_HOST;
-  const user = process.env.EMAIL_USER;
-  const pass = process.env.EMAIL_PASS;
-  const port = Number(process.env.EMAIL_PORT ?? 587);
-  const fromName = process.env.EMAIL_FROM_NAME ?? "EduFin Services";
+  const { host, user, pass, port, fromName } = getSmtpConfig();
 
   if (!host || !user || !pass) {
     console.warn("[email] EMAIL_HOST/USER/PASS not configured — skipping email for", leadEmail);
@@ -134,11 +139,7 @@ export async function sendPasswordResetEmail(
   toEmail: string,
   resetUrl: string
 ): Promise<void> {
-  const host = process.env.EMAIL_HOST;
-  const user = process.env.EMAIL_USER;
-  const pass = process.env.EMAIL_PASS;
-  const port = Number(process.env.EMAIL_PORT ?? 587);
-  const fromName = process.env.EMAIL_FROM_NAME ?? "EduFin Services";
+  const { host, user, pass, port, fromName } = getSmtpConfig();
 
   if (!host || !user || !pass) {
     console.warn("[email] EMAIL_HOST/USER/PASS not configured — reset link:", resetUrl);

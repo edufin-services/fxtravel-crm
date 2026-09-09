@@ -863,6 +863,12 @@ export async function getContactsByOwner(ownerId: string): Promise<Contact[]> {
   return docs.map((d) => toPlain<Contact>(d));
 }
 
+export async function getAllContacts(): Promise<Contact[]> {
+  await dbConnect();
+  const docs = await ContactModel.find({});
+  return docs.map((d) => toPlain<Contact>(d));
+}
+
 export async function createContact(contact: Omit<Contact, "id" | "createdAt">): Promise<Contact> {
   await dbConnect();
   const newContact: Contact = { ...contact, id: crypto.randomUUID(), createdAt: new Date().toISOString() };

@@ -52,7 +52,7 @@ export default async function AdminDashboardPage() {
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const newThisWeek = leads.filter((l) => new Date(l.createdAt).getTime() >= sevenDaysAgo).length;
 
-  const completedCount = (stageCount["Confirmed"] ?? 0) + (stageCount["Closed"] ?? 0);
+  const completedCount = stageCount["Confirmed"] ?? 0;
   const conversionRate = totalLeads > 0 ? Math.round((completedCount / totalLeads) * 100) : 0;
 
   function fmt(v: number) {
@@ -103,15 +103,17 @@ export default async function AdminDashboardPage() {
       ),
     },
     Closed: {
-      label: "Deals Closed",
-      desc: "Trip closed & won",
-      dot: "bg-purple-500",
-      bar: "bg-purple-500",
-      text: "text-purple-700",
-      badge: "bg-purple-50 text-purple-700 border-purple-200/80",
+      label: "Closed / Lost",
+      desc: "Deal closed / unsuccessful",
+      dot: "bg-rose-500",
+      bar: "bg-rose-500",
+      text: "text-rose-700",
+      badge: "bg-rose-50 text-rose-700 border-rose-200/80",
       icon: (
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="8" r="7" /><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
+          <circle cx="12" cy="12" r="10" />
+          <line x1="15" y1="9" x2="9" y2="15" />
+          <line x1="9" y1="9" x2="15" y2="15" />
         </svg>
       ),
     },

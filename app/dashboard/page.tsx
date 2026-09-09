@@ -120,14 +120,16 @@ const STAGE_DETAILS: Record<string, { label: string; desc: string; dot: string; 
     ),
   },
   Closed: {
-    label: "Deals Closed",
-    desc: "Trip closed & won",
-    dot: "bg-purple-500",
-    bar: "bg-purple-500",
-    badge: "bg-purple-50 text-purple-700 border-purple-200/80",
+    label: "Closed / Lost",
+    desc: "Deal closed / unsuccessful",
+    dot: "bg-rose-500",
+    bar: "bg-rose-500",
+    badge: "bg-rose-50 text-rose-700 border-rose-200/80",
     icon: (
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="8" r="7" /><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
+        <circle cx="12" cy="12" r="10" />
+        <line x1="15" y1="9" x2="9" y2="15" />
+        <line x1="9" y1="9" x2="15" y2="15" />
       </svg>
     ),
   },
@@ -200,7 +202,7 @@ export default async function DashboardPage() {
   const initialLeads = leads.filter((l) => l.stage === "Initial").length;
   const connectedLeads = leads.filter((l) => l.stage === "Connected").length;
   const inProgressLeads = initialLeads + connectedLeads;
-  const wonCount = leads.filter((l) => l.stage === "Confirmed" || l.stage === "Closed").length;
+  const wonCount = leads.filter((l) => l.stage === "Confirmed").length;
   const conversionRate = leads.length > 0 ? ((wonCount / leads.length) * 100).toFixed(1) : "0.0";
   const totalPipelineValue = leads.reduce((s, l) => s + (l.value || 0), 0);
   const firstName = user.name.split(" ")[0];

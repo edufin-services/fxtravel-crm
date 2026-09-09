@@ -21,9 +21,9 @@ const STAGE_TEMPLATES: Record<string, Template> = {
     body: "Congratulations! Your order/application has reached the <strong>Confirmed</strong> stage.",
   },
   Closed: {
-    subject: "Order Closed - Completed!",
-    heading: "Order Closed",
-    body: "Your order/application has reached the final <strong>Closed</strong> stage.",
+    subject: "Application Status - Closed",
+    heading: "Application Closed",
+    body: "Your application/enquiry has been <strong>Closed</strong>. If you require further assistance or wish to reopen your enquiry, please feel free to reach out to us anytime.",
   },
 };
 

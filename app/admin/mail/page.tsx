@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getEmailReportLogs, getReportSettings } from "@/lib/db";
+import { initReportScheduler } from "@/lib/cron-scheduler";
 import { getSession } from "@/lib/session";
 import AdminMailClient from "./AdminMailClient";
 
@@ -8,6 +9,8 @@ export const dynamic = "force-dynamic";
 export default async function AdminMailPage() {
   const session = await getSession();
   if (!session?.isAdmin) redirect("/login");
+
+  initReportScheduler();
 
   const [settings, logs] = await Promise.all([
     getReportSettings(),

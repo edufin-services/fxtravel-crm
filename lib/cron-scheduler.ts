@@ -2,8 +2,10 @@ import "server-only";
 import { claimDailyCronSlot, claimWeeklyCronSlot, getRecipientsFromSettings, getReportSettings } from "./db";
 import { sendActivityReportEmail } from "./reports";
 
-let isSchedulerRunning = false;
-let intervalHandle: NodeJS.Timeout | null = null;
+const globalScheduler = globalThis as unknown as {
+  __reportSchedulerInterval?: NodeJS.Timeout;
+  __reportSchedulerRunning?: boolean;
+};
 
 /**
  * Checks if daily or weekly digest reports are due and dispatches them
@@ -33,9 +35,8 @@ export async function checkAndDispatchScheduledReports(): Promise<void> {
     const currentHour = Number(parts.find((p) => p.type === "hour")?.value || "0");
     const currentMinute = Number(parts.find((p) => p.type === "minute")?.value || "0");
 
-    const [targetHour, targetMinute] = (settings.dailyReportTime || "20:00")
-      .split(":")
-      .map((n) => Number(n) || 0);
+    const scheduledTime = settings.dailyReportTime || "20:00";
+    const [targetHour, targetMinute] = scheduledTime.split(":").map((n) => Number(n) || 0);
 
     const isPastScheduledTime =
       currentHour > targetHour || (currentHour === targetHour && currentMinute >= targetMinute);
@@ -43,13 +44,13 @@ export async function checkAndDispatchScheduledReports(): Promise<void> {
     const recipients = getRecipientsFromSettings(settings);
 
     // 2. Check Daily Report:
-    // Only dispatch on or after scheduled time (e.g. 20:00 IST),
-    // and strictly once per calendar day using atomic DB claim
+    // Dispatches once per scheduled time slot (e.g. 2026-09-09_20:00) using atomic DB claim
     if (settings.dailyEnabled && isPastScheduledTime) {
-      const claimed = await claimDailyCronSlot(todayIstDate);
+      const dailySlotKey = `${todayIstDate}_${scheduledTime}`;
+      const claimed = await claimDailyCronSlot(dailySlotKey);
       if (claimed) {
         console.log(
-          `[cron-scheduler] Scheduled daily report is due for ${todayIstDate} at ${settings.dailyReportTime || "20:00"} IST. Dispatching...`
+          `[cron-scheduler] Scheduled daily report claimed for slot ${dailySlotKey}. Dispatching to ${recipients.length} recipients...`
         );
         await sendActivityReportEmail({
           period: "daily",
@@ -60,17 +61,17 @@ export async function checkAndDispatchScheduledReports(): Promise<void> {
     }
 
     // 3. Check Weekly Report:
-    // Only dispatch on the designated day (default Sunday = 0) on or after scheduled time,
-    // and strictly once per weekly cycle using atomic DB claim
+    // Dispatches once per designated day (default Sunday = 0) on or after scheduled time
     if (settings.weeklyEnabled) {
       const targetDay = settings.weeklyReportDay ?? 0;
       const isTargetDay = istDayOfWeek === targetDay;
 
       if (isTargetDay && isPastScheduledTime) {
-        const claimed = await claimWeeklyCronSlot(todayIstDate);
+        const weeklySlotKey = `${todayIstDate}_${scheduledTime}`;
+        const claimed = await claimWeeklyCronSlot(weeklySlotKey);
         if (claimed) {
           console.log(
-            `[cron-scheduler] Scheduled weekly report is due for day ${targetDay} at ${settings.dailyReportTime || "20:00"} IST. Dispatching...`
+            `[cron-scheduler] Scheduled weekly report claimed for slot ${weeklySlotKey}. Dispatching to ${recipients.length} recipients...`
           );
           await sendActivityReportEmail({
             period: "weekly",
@@ -89,27 +90,29 @@ export async function checkAndDispatchScheduledReports(): Promise<void> {
  * Initializes the in-process background scheduler interval
  */
 export function initReportScheduler(): void {
-  if (isSchedulerRunning) return;
-  isSchedulerRunning = true;
+  if (globalScheduler.__reportSchedulerRunning) return;
+  globalScheduler.__reportSchedulerRunning = true;
 
-  console.log("[cron-scheduler] Initializing automated daily & weekly report scheduler...");
+  console.log("[cron-scheduler] Initializing automated daily & weekly report scheduler (30s interval)...");
 
-  // Run initial check after 10 seconds (gives server time to start)
+  // Run initial check after 2 seconds
   setTimeout(() => {
     checkAndDispatchScheduledReports().catch((err) =>
       console.error("[cron-scheduler] Initial check error:", err)
     );
-  }, 10000);
+  }, 2000);
 
-  // Check every 5 minutes (300,000 ms)
-  intervalHandle = setInterval(() => {
+  // Check every 30 seconds for precise schedule alignment
+  if (globalScheduler.__reportSchedulerInterval) {
+    clearInterval(globalScheduler.__reportSchedulerInterval);
+  }
+  globalScheduler.__reportSchedulerInterval = setInterval(() => {
     checkAndDispatchScheduledReports().catch((err) =>
       console.error("[cron-scheduler] Interval check error:", err)
     );
-  }, 5 * 60 * 1000);
+  }, 30 * 1000);
 
-  // Unref interval so it doesn't block process exit if necessary
-  if (intervalHandle?.unref) {
-    intervalHandle.unref();
+  if (globalScheduler.__reportSchedulerInterval?.unref) {
+    globalScheduler.__reportSchedulerInterval.unref();
   }
 }

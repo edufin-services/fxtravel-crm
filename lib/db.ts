@@ -1519,19 +1519,19 @@ export async function updateReportSettings(updates: Partial<ReportSettings>): Pr
 }
 
 /**
- * Atomically claims the daily automated cron slot for today's IST date.
+ * Atomically claims the daily automated cron slot for today's IST schedule (slotKey).
  * Returns true if this invocation successfully acquired the lock, false if already claimed.
  */
-export async function claimDailyCronSlot(todayIstDate: string): Promise<boolean> {
+export async function claimDailyCronSlot(slotKey: string): Promise<boolean> {
   await dbConnect();
   const res = await ReportSettingsModel.findOneAndUpdate(
     {
       id: "report_settings",
-      lastDailyCronDate: { $ne: todayIstDate },
+      lastDailyCronDate: { $ne: slotKey },
     },
     {
       $set: {
-        lastDailyCronDate: todayIstDate,
+        lastDailyCronDate: slotKey,
         lastDailySentAt: new Date().toISOString(),
       },
     },
@@ -1541,19 +1541,19 @@ export async function claimDailyCronSlot(todayIstDate: string): Promise<boolean>
 }
 
 /**
- * Atomically claims the weekly automated cron slot for this week's IST date.
+ * Atomically claims the weekly automated cron slot for this week's IST schedule (slotKey).
  * Returns true if this invocation successfully acquired the lock, false if already claimed.
  */
-export async function claimWeeklyCronSlot(todayIstDate: string): Promise<boolean> {
+export async function claimWeeklyCronSlot(slotKey: string): Promise<boolean> {
   await dbConnect();
   const res = await ReportSettingsModel.findOneAndUpdate(
     {
       id: "report_settings",
-      lastWeeklyCronDate: { $ne: todayIstDate },
+      lastWeeklyCronDate: { $ne: slotKey },
     },
     {
       $set: {
-        lastWeeklyCronDate: todayIstDate,
+        lastWeeklyCronDate: slotKey,
         lastWeeklySentAt: new Date().toISOString(),
       },
     },

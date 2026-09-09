@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEmailReportLogs, getRecipientsFromSettings, getReportSettings, updateReportSettings } from "@/lib/db";
 import { generateActivityReport, sendActivityReportEmail } from "@/lib/reports";
+import { checkAndDispatchScheduledReports, initReportScheduler } from "@/lib/cron-scheduler";
 import { getSession } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
@@ -8,6 +9,9 @@ export async function GET(request: NextRequest) {
   if (!session?.isAdmin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+
+  // Ensure background scheduler is running
+  initReportScheduler();
 
   const url = new URL(request.url);
   const previewPeriod = url.searchParams.get("preview") as "daily" | "weekly" | null;
@@ -70,7 +74,11 @@ export async function PATCH(request: NextRequest) {
 
   if (typeof body.dailyEnabled === "boolean") updates.dailyEnabled = body.dailyEnabled;
   if (typeof body.weeklyEnabled === "boolean") updates.weeklyEnabled = body.weeklyEnabled;
-  if (typeof body.dailyReportTime === "string") updates.dailyReportTime = body.dailyReportTime;
+  if (typeof body.dailyReportTime === "string") {
+    updates.dailyReportTime = body.dailyReportTime;
+    // Reset daily claim lock so the new schedule time can trigger today
+    updates.lastDailyCronDate = "";
+  }
   if (typeof body.weeklyReportDay === "number") updates.weeklyReportDay = body.weeklyReportDay;
 
   if (Array.isArray(body.recipientEmails)) {
@@ -89,5 +97,12 @@ export async function PATCH(request: NextRequest) {
   }
 
   const settings = await updateReportSettings(updates);
+
+  // Ensure scheduler is active and trigger check immediately
+  initReportScheduler();
+  checkAndDispatchScheduledReports().catch((err) =>
+    console.error("[api/reports] Error evaluating schedule on save:", err)
+  );
+
   return NextResponse.json({ success: true, settings });
 }

@@ -333,10 +333,15 @@ const ReportSettingsSchema = new Schema({
   weeklyReportDay: { type: Number, default: 0 }, // 0 = Sunday
   lastDailySentAt: { type: String, default: null },
   lastWeeklySentAt: { type: String, default: null },
-  lastDailyCronDate: { type: String, default: null }, // "YYYY-MM-DD" IST of automated run
-  lastWeeklyCronDate: { type: String, default: null }, // "YYYY-MM-DD" IST of automated run
+  lastDailyCronDate: { type: String, default: null }, // Slot key of automated run
+  lastWeeklyCronDate: { type: String, default: null }, // Slot key of automated run
   recipientEmails: { type: [String], default: [] },
   customRecipientEmail: { type: String, default: "" },
+  smtpHost: { type: String, default: "smtp.gmail.com" },
+  smtpPort: { type: Number, default: 587 },
+  smtpUser: { type: String, default: "" },
+  smtpPass: { type: String, default: "" },
+  fromName: { type: String, default: "Fxpertise Travel CRM" },
 });
 
 export const ReportSettingsModel = models.ReportSettings ?? model("ReportSettings", ReportSettingsSchema);

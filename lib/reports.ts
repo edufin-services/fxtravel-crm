@@ -570,8 +570,11 @@ export async function sendActivityReportEmail(options?: {
     recipientList = options.recipients.map((r) => r.trim()).filter(Boolean);
   } else if (options?.customRecipient) {
     recipientList = options.customRecipient.split(",").map((r) => r.trim()).filter(Boolean);
-  } else {
-    const settings = await getReportSettings();
+  }
+
+  const settings = await getReportSettings();
+
+  if (recipientList.length === 0) {
     recipientList = getRecipientsFromSettings(settings);
   }
 
@@ -584,18 +587,70 @@ export async function sendActivityReportEmail(options?: {
   const recipient = recipientList.join(", ");
   const reportData = await generateActivityReport(period, { recipient });
 
-  const host = process.env.EMAIL_HOST?.trim();
-  const user = process.env.EMAIL_USER?.trim();
-  const pass = process.env.EMAIL_PASS?.trim();
-  const port = Number(process.env.EMAIL_PORT || 587);
-  const fromName = process.env.EMAIL_FROM_NAME || "Fxpertise CRM";
+  // Triple-layer fallback for SMTP credentials:
+  // 1. process.env
+  // 2. Direct .env.local disk read
+  // 3. Persistent MongoDB settings (ensures cloud/serverless works without manual env setup)
+  let localEnv: Record<string, string> = {};
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    try {
+      const fs = require("fs");
+      const path = require("path");
+      const envPath = path.resolve(process.cwd(), ".env.local");
+      if (fs.existsSync(envPath)) {
+        const content = fs.readFileSync(envPath, "utf8");
+        for (const line of content.split("\n")) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith("#")) continue;
+          const eqIdx = trimmed.indexOf("=");
+          if (eqIdx > 0) {
+            const k = trimmed.slice(0, eqIdx).trim();
+            let v = trimmed.slice(eqIdx + 1).trim();
+            if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+              v = v.slice(1, -1);
+            }
+            localEnv[k] = v;
+          }
+        }
+      }
+    } catch {}
+  }
+
+  const host =
+    process.env.EMAIL_HOST?.trim() ||
+    localEnv.EMAIL_HOST?.trim() ||
+    settings.smtpHost?.trim() ||
+    "smtp.gmail.com";
+
+  const user =
+    process.env.EMAIL_USER?.trim() ||
+    localEnv.EMAIL_USER?.trim() ||
+    settings.smtpUser?.trim();
+
+  const pass =
+    process.env.EMAIL_PASS?.trim() ||
+    localEnv.EMAIL_PASS?.trim() ||
+    settings.smtpPass?.trim();
+
+  const port = Number(
+    process.env.EMAIL_PORT ||
+    localEnv.EMAIL_PORT ||
+    settings.smtpPort ||
+    587
+  );
+
+  const fromName =
+    process.env.EMAIL_FROM_NAME ||
+    localEnv.EMAIL_FROM_NAME ||
+    settings.fromName ||
+    "Fxpertise Travel CRM";
 
   const subject = `[${fromName}] ${reportData.periodLabel} - ${formatDate(reportData.periodEnd)}`;
   const html = buildReportEmailHtml(reportData);
   const text = buildReportEmailText(reportData);
 
   if (!host || !user || !pass) {
-    const errorMsg = `SMTP credentials (EMAIL_HOST, EMAIL_USER, EMAIL_PASS) are not configured in environment. Report for ${recipient} could not be dispatched.`;
+    const errorMsg = `SMTP credentials (EMAIL_HOST, EMAIL_USER, EMAIL_PASS) are not configured in environment or database. Report for ${recipient} could not be dispatched.`;
     console.warn(`[email-report] ${errorMsg}`);
 
     await logEmailReport({
@@ -614,7 +669,7 @@ export async function sendActivityReportEmail(options?: {
 
     return {
       success: false,
-      message: `Failed to dispatch email report: SMTP credentials are not configured in .env.local.`,
+      message: `Failed to dispatch email report: SMTP credentials are not configured.`,
       reportData,
     };
   }

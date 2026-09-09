@@ -244,6 +244,11 @@ export type ReportSettings = {
   lastWeeklyCronDate?: string | null;
   recipientEmails?: string[];
   customRecipientEmail?: string;
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpUser?: string;
+  smtpPass?: string;
+  fromName?: string;
 };
 
 export type EmailReportLog = {

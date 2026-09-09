@@ -4,6 +4,8 @@ import {
   getAdminSettings,
   getAllUsers,
   getLeadActivities,
+  getRecipientsFromSettings,
+  getReportSettings,
   LeadActivity,
   logEmailReport,
   updateReportSettings,
@@ -211,7 +213,7 @@ export async function generateActivityReport(
   const totalConfirmedValue = confirmedLeads.reduce((acc, curr) => acc + (curr.value || 0), 0);
 
   const periodLabel = period === "weekly" ? "Weekly Executive Summary" : "Daily Activity & Stage Digest";
-  const recipient = options?.recipient || process.env.E_EMAIL || process.env.ADMIN_EMAIL || "admin@fxpertise.com";
+  const recipient = options?.recipient || process.env.ADMIN_EMAIL || "admin@fxpertise.com";
 
   return {
     period,
@@ -552,21 +554,34 @@ Dispatched by ${fromName} to ${data.recipient}.`;
 }
 
 /**
- * Dispatches the activity report email to E_EMAIL (or custom recipient)
+ * Dispatches the activity report email to configured recipients (or custom recipients)
  */
 export async function sendActivityReportEmail(options?: {
   period?: ReportPeriod;
+  recipients?: string[];
   customRecipient?: string;
   force?: boolean;
   isScheduledCron?: boolean;
 }): Promise<{ success: boolean; message: string; reportData?: ActivityReportData }> {
   const period = options?.period || "daily";
-  const recipient =
-    options?.customRecipient ||
-    process.env.E_EMAIL ||
-    process.env.ADMIN_EMAIL ||
-    (await getAdminSettings()).email;
 
+  let recipientList: string[] = [];
+  if (options?.recipients && options.recipients.length > 0) {
+    recipientList = options.recipients.map((r) => r.trim()).filter(Boolean);
+  } else if (options?.customRecipient) {
+    recipientList = options.customRecipient.split(",").map((r) => r.trim()).filter(Boolean);
+  } else {
+    const settings = await getReportSettings();
+    recipientList = getRecipientsFromSettings(settings);
+  }
+
+  if (recipientList.length === 0) {
+    const adminSettings = await getAdminSettings().catch(() => ({ email: "" }));
+    const fallback = process.env.ADMIN_EMAIL || adminSettings.email || "admin@fxpertise.com";
+    recipientList = [fallback];
+  }
+
+  const recipient = recipientList.join(", ");
   const reportData = await generateActivityReport(period, { recipient });
 
   const host = process.env.EMAIL_HOST?.trim();
@@ -614,7 +629,7 @@ export async function sendActivityReportEmail(options?: {
 
     await transporter.sendMail({
       from: `"${fromName}" <${user}>`,
-      to: recipient,
+      to: recipientList,
       subject,
       text,
       html,

@@ -242,6 +242,7 @@ export type ReportSettings = {
   lastWeeklySentAt: string | null;
   lastDailyCronDate?: string | null;
   lastWeeklyCronDate?: string | null;
+  recipientEmails?: string[];
   customRecipientEmail?: string;
 };
 
@@ -1485,10 +1486,26 @@ export async function getReportSettings(): Promise<ReportSettings> {
       weeklyReportDay: 0,
       lastDailySentAt: null,
       lastWeeklySentAt: null,
+      recipientEmails: [],
       customRecipientEmail: "",
     });
   }
-  return toPlain<ReportSettings>(doc);
+  const plain = toPlain<ReportSettings>(doc);
+  // Backwards compatibility migration
+  if ((!plain.recipientEmails || plain.recipientEmails.length === 0) && plain.customRecipientEmail?.trim()) {
+    plain.recipientEmails = [plain.customRecipientEmail.trim()];
+  } else if (!plain.recipientEmails) {
+    plain.recipientEmails = [];
+  }
+  return plain;
+}
+
+export function getRecipientsFromSettings(settings: ReportSettings): string[] {
+  const list = (settings.recipientEmails ?? []).map((e) => e.trim().toLowerCase()).filter(Boolean);
+  if (list.length === 0 && settings.customRecipientEmail?.trim()) {
+    list.push(settings.customRecipientEmail.trim().toLowerCase());
+  }
+  return Array.from(new Set(list));
 }
 
 export async function updateReportSettings(updates: Partial<ReportSettings>): Promise<ReportSettings> {

@@ -1,5 +1,5 @@
 import "server-only";
-import { claimDailyCronSlot, claimWeeklyCronSlot, getReportSettings } from "./db";
+import { claimDailyCronSlot, claimWeeklyCronSlot, getRecipientsFromSettings, getReportSettings } from "./db";
 import { sendActivityReportEmail } from "./reports";
 
 let isSchedulerRunning = false;
@@ -40,6 +40,8 @@ export async function checkAndDispatchScheduledReports(): Promise<void> {
     const isPastScheduledTime =
       currentHour > targetHour || (currentHour === targetHour && currentMinute >= targetMinute);
 
+    const recipients = getRecipientsFromSettings(settings);
+
     // 2. Check Daily Report:
     // Only dispatch on or after scheduled time (e.g. 20:00 IST),
     // and strictly once per calendar day using atomic DB claim
@@ -51,7 +53,7 @@ export async function checkAndDispatchScheduledReports(): Promise<void> {
         );
         await sendActivityReportEmail({
           period: "daily",
-          customRecipient: settings.customRecipientEmail || undefined,
+          recipients: recipients.length > 0 ? recipients : undefined,
           isScheduledCron: true,
         });
       }
@@ -72,7 +74,7 @@ export async function checkAndDispatchScheduledReports(): Promise<void> {
           );
           await sendActivityReportEmail({
             period: "weekly",
-            customRecipient: settings.customRecipientEmail || undefined,
+            recipients: recipients.length > 0 ? recipients : undefined,
             isScheduledCron: true,
           });
         }

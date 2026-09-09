@@ -335,6 +335,7 @@ const ReportSettingsSchema = new Schema({
   lastWeeklySentAt: { type: String, default: null },
   lastDailyCronDate: { type: String, default: null }, // "YYYY-MM-DD" IST of automated run
   lastWeeklyCronDate: { type: String, default: null }, // "YYYY-MM-DD" IST of automated run
+  recipientEmails: { type: [String], default: [] },
   customRecipientEmail: { type: String, default: "" },
 });
 

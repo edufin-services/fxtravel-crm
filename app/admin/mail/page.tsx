@@ -14,8 +14,6 @@ export default async function AdminMailPage() {
     getEmailReportLogs(30),
   ]);
 
-  const envRecipient = process.env.E_EMAIL || process.env.ADMIN_EMAIL || "admin@fxpertise.com";
-
   return (
     <div className="space-y-6 pb-8">
       {/* Header */}
@@ -37,7 +35,6 @@ export default async function AdminMailPage() {
       <AdminMailClient
         initialSettings={settings}
         initialLogs={logs}
-        envRecipient={envRecipient}
       />
     </div>
   );

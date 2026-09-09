@@ -18,6 +18,7 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/admin/
     city, state, neetStatus, preferredCountry, preferredUniversity1, preferredUniversity2, assignAgent, ownerId,
     assignedBranchId, assignedBranchName, formNotes,
     firstPayment, secondPayment, thirdPaymentAmount, otcAmount, totalServiceCharge,
+    companyName, designation, yearlyVolume, rateOfferedCN, rateOfferedCard, rateOfferedTTDD, nextFollowUp, feedback, clientVisitStatus,
   } = body ?? {};
 
   const updates: Record<string, any> = {};
@@ -36,8 +37,9 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/admin/
   }
   if (email !== undefined) updates.email = typeof email === "string" ? email.trim() : "";
   if (phone !== undefined) {
-    const digits = typeof phone === "string" ? phone.replace(/\D/g, "") : "";
-    if (phone && digits.length !== 10) {
+    const rawDigits = typeof phone === "string" ? phone.replace(/\D/g, "") : "";
+    const digits = rawDigits.length > 10 ? rawDigits.slice(-10) : rawDigits;
+    if (digits && digits.length !== 10) {
       return NextResponse.json({ error: "Phone number must be exactly 10 digits." }, { status: 400 });
     }
     updates.phone = digits;
@@ -55,12 +57,20 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/admin/
   if (preferredCountry !== undefined) updates.preferredCountry = typeof preferredCountry === "string" ? preferredCountry.trim() : "";
   if (preferredUniversity1 !== undefined) updates.preferredUniversity1 = typeof preferredUniversity1 === "string" ? preferredUniversity1.trim() : "";
   if (preferredUniversity2 !== undefined) updates.preferredUniversity2 = typeof preferredUniversity2 === "string" ? preferredUniversity2.trim() : "";
-  if (assignAgent !== undefined) updates.assignAgent = typeof assignAgent === "string" ? assignAgent.trim() : "";
 
-  if (ownerId !== undefined) {
+  // Only assign agent if it is a real agent name and not "__admin__"
+  if (assignAgent !== undefined && assignAgent !== "Admin") {
+    updates.assignAgent = typeof assignAgent === "string" ? assignAgent.trim() : "";
+  }
+
+  // If ownerId is provided and not "__admin__", reassign to that agent.
+  // If ownerId is "__admin__" or empty, preserve existing ownerId without erroring.
+  if (ownerId !== undefined && ownerId !== "__admin__" && ownerId !== "") {
     if (typeof ownerId !== "string" || !ownerId.trim()) return NextResponse.json({ error: "Invalid agent." }, { status: 400 });
-    if (!await getUserById(ownerId)) return NextResponse.json({ error: "Agent not found." }, { status: 404 });
+    const targetUser = await getUserById(ownerId);
+    if (!targetUser) return NextResponse.json({ error: "Agent not found." }, { status: 404 });
     updates.ownerId = ownerId;
+    if (!updates.assignAgent) updates.assignAgent = targetUser.name;
   }
 
   if (firstPayment !== undefined && typeof firstPayment === "number") updates.firstPayment = firstPayment;
@@ -68,6 +78,16 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/admin/
   if (thirdPaymentAmount !== undefined && typeof thirdPaymentAmount === "number") updates.thirdPaymentAmount = thirdPaymentAmount;
   if (otcAmount !== undefined && typeof otcAmount === "number") updates.otcAmount = otcAmount;
   if (totalServiceCharge !== undefined && typeof totalServiceCharge === "number") updates.totalServiceCharge = totalServiceCharge;
+
+  if (companyName !== undefined) updates.companyName = typeof companyName === "string" ? companyName.trim() : "";
+  if (designation !== undefined) updates.designation = typeof designation === "string" ? designation.trim() : "";
+  if (yearlyVolume !== undefined) updates.yearlyVolume = Number(yearlyVolume) || 0;
+  if (rateOfferedCN !== undefined) updates.rateOfferedCN = Number(rateOfferedCN) || 0;
+  if (rateOfferedCard !== undefined) updates.rateOfferedCard = Number(rateOfferedCard) || 0;
+  if (rateOfferedTTDD !== undefined) updates.rateOfferedTTDD = Number(rateOfferedTTDD) || 0;
+  if (nextFollowUp !== undefined) updates.nextFollowUp = typeof nextFollowUp === "string" ? nextFollowUp : "";
+  if (feedback !== undefined) updates.feedback = typeof feedback === "string" ? feedback : "";
+  if (clientVisitStatus !== undefined) updates.clientVisitStatus = typeof clientVisitStatus === "string" ? clientVisitStatus : "Live";
 
   const lead = await updateLeadAdmin(id, updates);
   if (!lead) return NextResponse.json({ error: "Lead not found." }, { status: 404 });

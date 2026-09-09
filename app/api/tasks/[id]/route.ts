@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { deleteTask, updateTask } from "@/lib/db";
+import { deleteTask, deleteTaskAdmin, updateTask, updateTaskAdmin } from "@/lib/db";
 import { getSession } from "@/lib/session";
 
 const TASK_TYPES = ["call", "email", "meeting", "message"] as const;
 
 export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/tasks/[id]">) {
   const session = await getSession();
-  if (!session?.userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session?.userId && !session?.isAdmin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await ctx.params;
   const body = await request.json().catch(() => null);
@@ -39,7 +39,9 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/tasks/
   if (leadId !== undefined) updates.leadId = leadId ? String(leadId) : undefined;
   if (leadName !== undefined) updates.leadName = leadName ? String(leadName) : undefined;
 
-  const task = await updateTask(id, session.userId, updates);
+  const task = session.isAdmin
+    ? await updateTaskAdmin(id, updates)
+    : await updateTask(id, session.userId!, updates);
   if (!task) return NextResponse.json({ error: "Task not found." }, { status: 404 });
 
   return NextResponse.json({ task });
@@ -47,8 +49,12 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/tasks/
 
 export async function DELETE(_request: NextRequest, ctx: RouteContext<"/api/tasks/[id]">) {
   const session = await getSession();
-  if (!session?.userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session?.userId && !session?.isAdmin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await ctx.params;
-  await deleteTask(id, session.userId);
+  if (session.isAdmin) {
+    await deleteTaskAdmin(id);
+  } else {
+    await deleteTask(id, session.userId!);
+  }
   return NextResponse.json({ success: true });
 }

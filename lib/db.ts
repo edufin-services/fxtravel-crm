@@ -954,6 +954,12 @@ export async function getTasksByOwner(ownerId: string): Promise<Task[]> {
   return docs.map((d) => toPlain<Task>(d));
 }
 
+export async function getAllTasks(): Promise<Task[]> {
+  await dbConnect();
+  const docs = await TaskModel.find({}).sort({ dueDate: 1 });
+  return docs.map((d) => toPlain<Task>(d));
+}
+
 export async function createTask(task: Omit<Task, "id">): Promise<Task> {
   await dbConnect();
   const newTask: Task = { ...task, id: crypto.randomUUID() };
@@ -977,9 +983,23 @@ export async function updateTask(
   return doc ? toPlain<Task>(doc) : undefined;
 }
 
+export async function updateTaskAdmin(
+  id: string,
+  updates: Partial<Pick<Task, "title" | "contact" | "type" | "dueDate" | "done" | "leadId" | "leadName">>
+): Promise<Task | undefined> {
+  await dbConnect();
+  const doc = await TaskModel.findOneAndUpdate({ id }, { $set: updates }, { returnDocument: "after" });
+  return doc ? toPlain<Task>(doc) : undefined;
+}
+
 export async function deleteTask(id: string, ownerId: string): Promise<void> {
   await dbConnect();
   await TaskModel.deleteOne({ id, ownerId });
+}
+
+export async function deleteTaskAdmin(id: string): Promise<void> {
+  await dbConnect();
+  await TaskModel.deleteOne({ id });
 }
 
 // ── Team members ───────────────────────────────────────────────────────────

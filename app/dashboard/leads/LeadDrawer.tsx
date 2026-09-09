@@ -14,6 +14,7 @@ export type DrawerLead = {
   channel: Channel;
   stage: Stage;
   createdAt: string;
+  ownerId?: string;
   whatsappId?: string;
   email?: string;
   phone?: string;
@@ -415,7 +416,12 @@ export default function LeadDrawer({
   // Contact fields
   const [name, setName] = useState(lead.name);
   const [email, setEmail] = useState(lead.email ?? "");
-  const [phone, setPhone] = useState(lead.phone ?? "");
+  const [phone, setPhone] = useState(() => {
+    const raw = lead.phone ?? "";
+    if (raw === "—") return "";
+    const digits = raw.replace(/\D/g, "");
+    return digits.length >= 10 ? digits.slice(-10) : digits;
+  });
 
   // Client Visit Scope fields
   const [companyName, setCompanyName] = useState(lead.companyName ?? "");
@@ -434,16 +440,25 @@ export default function LeadDrawer({
   const [preferredCountry, setPreferredCountry] = useState(lead.preferredCountry ?? "");
   const [preferredUniversity1, setPreferredUniversity1] = useState(lead.preferredUniversity1 ?? "");
   const [preferredUniversity2, setPreferredUniversity2] = useState(lead.preferredUniversity2 ?? "");
-  // The lead is always currently owned by the logged-in agent viewing it
-  // (the dashboard only ever loads your own leads), so the picker defaults
-  // to "you" regardless of the legacy assignAgent label on the lead.
-  const [assignAgentId, setAssignAgentId] = useState("");
+  
+  // Agent assignment: prioritize lead's existing ownerId, or match by name,
+  // or default to current user if the user is a regular agent (never __admin__).
+  const [assignAgentId, setAssignAgentId] = useState(() => lead.ownerId ?? "");
 
   useEffect(() => {
-    if (!assignAgentId && currentUserId) {
-      setAssignAgentId(currentUserId);
+    if (!assignAgentId) {
+      if (lead.ownerId) {
+        setAssignAgentId(lead.ownerId);
+      } else if (lead.assignAgent && teamMembers.length > 0) {
+        const match = teamMembers.find(
+          (m) => m.name.toLowerCase() === lead.assignAgent?.toLowerCase()
+        );
+        if (match) setAssignAgentId(match.id);
+      } else if (currentUserId && currentUserId !== "__admin__") {
+        setAssignAgentId(currentUserId);
+      }
     }
-  }, [currentUserId, assignAgentId]);
+  }, [currentUserId, assignAgentId, lead.ownerId, lead.assignAgent, teamMembers]);
   // Pipeline fields
   const [color, setColor] = useState(lead.color ?? "");
   const [notes, setNotes] = useState(lead.notes ?? "");
@@ -493,6 +508,7 @@ export default function LeadDrawer({
   const [reminderAt, setReminderAt] = useState<string | undefined>(lead.reminderAt);
 
   // Refs
+  const contentScrollRef = useRef<HTMLDivElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const proposalDocRef = useRef<HTMLInputElement>(null);
   const registrationDocRef = useRef<HTMLInputElement>(null);
@@ -656,6 +672,10 @@ export default function LeadDrawer({
   };
   const handleDeleteVisaDoc = (url: string) => deleteArray(`/api/leads/${lead.id}/visa-documents`, url, visaDocuments, setVisaDocuments, onVisaDocumentsChange);
 
+  function scrollContentToTop() {
+    contentScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   // ── Submit ─────────────────────────────────────────────────────────────────
 
   async function handleSubmit() {
@@ -663,8 +683,9 @@ export default function LeadDrawer({
 
     if (phone) {
       const cleanPhone = phone.replace(/\D/g, "");
-      if (cleanPhone.length !== 10) {
+      if (cleanPhone.length > 0 && cleanPhone.length !== 10) {
         setError("Phone number must be exactly 10 digits.");
+        scrollContentToTop();
         return;
       }
     }
@@ -680,14 +701,21 @@ export default function LeadDrawer({
 
   async function doSubmit() {
     setLoading(true);
+    const chosenMember = teamMembers.find((m) => m.id === assignAgentId);
     const assignAgentName =
-      assignAgentId === currentUserId
+      chosenMember
+        ? chosenMember.name
+        : assignAgentId === currentUserId && currentUserId !== "__admin__"
         ? currentUserName
-        : teamMembers.find((m) => m.id === assignAgentId)?.name ?? "";
+        : lead.assignAgent ?? "";
+
+    const effectiveOwnerId = assignAgentId || lead.ownerId || "";
+
     const result = await onSubmit({
       name, stage, email, phone, color, notes, services: selectedServices,
       city, state, neetStatus, preferredCountry, preferredUniversity1, preferredUniversity2,
-      assignAgent: assignAgentName, ownerId: assignAgentId,
+      assignAgent: assignAgentName,
+      ownerId: effectiveOwnerId,
       firstPayment, secondPayment, thirdPaymentAmount, otcAmount, totalServiceCharge,
       companyName, designation,
       yearlyVolume: yearlyVolume !== "" ? Number(yearlyVolume) : 0,
@@ -700,6 +728,7 @@ export default function LeadDrawer({
     setLoading(false);
     if (result.error) {
       setError(result.error);
+      scrollContentToTop();
     } else {
       onClose();
     }
@@ -878,7 +907,7 @@ export default function LeadDrawer({
           </div>
 
         {/* ── Scrollable content ─────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto">
+        <div ref={contentScrollRef} className="flex-1 overflow-y-auto">
 
           {/* Error banner */}
           {error && (
@@ -964,18 +993,16 @@ export default function LeadDrawer({
                   onChange={(e) => setAssignAgentId(e.target.value)}
                   className={selectCls}
                 >
-                  {/* Current user always appears first */}
-                  {currentUserId && (
+                  <option value="">Unassigned</option>
+                  {teamMembers.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} {m.id === currentUserId && currentUserId !== "__admin__" ? "(You)" : ""}
+                    </option>
+                  ))}
+                  {!teamMembers.length && currentUserId && currentUserId !== "__admin__" && (
                     <option value={currentUserId}>{currentUserName} (You)</option>
                   )}
-                  {/* Team members */}
-                  {teamMembers
-                    .filter((m) => m.id !== currentUserId)
-                    .map((m) => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))}
-                  {/* Fallback if no data yet */}
-                  {!currentUserId && !teamMembers.length && (
+                  {!teamMembers.length && !currentUserId && (
                     <option value="">Loading...</option>
                   )}
                 </select>
@@ -1434,7 +1461,12 @@ export default function LeadDrawer({
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" strokeLinecap="round"/></svg>
             Delete
           </button>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            {error && (
+              <span className="text-xs font-semibold text-red-600 truncate max-w-[200px]" title={error}>
+                {error}
+              </span>
+            )}
             <button type="button" onClick={onClose}
               className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50 transition-colors">
               Cancel

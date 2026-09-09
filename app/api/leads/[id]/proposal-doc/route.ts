@@ -9,12 +9,12 @@ type Ctx = { params: Promise<{ id: string }> };
 
 export async function POST(request: NextRequest, ctx: Ctx) {
   const session = await getSession();
-  if (!session?.userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session?.userId && !session?.isAdmin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await ctx.params;
   await dbConnect();
 
-  const lead = await LeadModel.findOne({ id, ownerId: session.userId });
+  const lead = await LeadModel.findOne(session.isAdmin ? { id } : { id, ownerId: session.userId });
   if (!lead) return NextResponse.json({ error: "Lead not found." }, { status: 404 });
 
   let formData: FormData;
@@ -48,12 +48,12 @@ export async function POST(request: NextRequest, ctx: Ctx) {
 
 export async function DELETE(_request: NextRequest, ctx: Ctx) {
   const session = await getSession();
-  if (!session?.userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session?.userId && !session?.isAdmin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await ctx.params;
   await dbConnect();
 
-  const lead = await LeadModel.findOne({ id, ownerId: session.userId });
+  const lead = await LeadModel.findOne(session.isAdmin ? { id } : { id, ownerId: session.userId });
   if (!lead) return NextResponse.json({ error: "Lead not found." }, { status: 404 });
 
   if (lead.proposalDoc?.url) {

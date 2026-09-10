@@ -6,7 +6,7 @@ export const FOREX_SERVICES = [
 ] as const;
 export type ForexService = (typeof FOREX_SERVICES)[number];
 
-export const SERVICES = ["Tours & Packages", "Flights/Hotels", "Others"] as const;
+export const SERVICES = ["Domestic Tours", "International Tours", "Flights/Hotels", "Others"] as const;
 export type Service = (typeof SERVICES)[number];
 
 export const STAGES = [

@@ -107,6 +107,28 @@ export async function POST(request: NextRequest) {
                 } catch {}
               }
 
+              // If adset name is not populated directly on leadgen, fetch via adset_id
+              if (!adsetName && leadData.adset_id) {
+                try {
+                  const adsetRes = await fetch(
+                    `https://graph.facebook.com/v21.0/${leadData.adset_id}?fields=name&access_token=${pageAccessToken}`
+                  );
+                  const adsetData = await adsetRes.json().catch(() => null);
+                  if (adsetData?.name) adsetName = adsetData.name;
+                } catch {}
+              }
+
+              // If ad name is not populated directly on leadgen, fetch via ad_id
+              if (!adName && leadData.ad_id) {
+                try {
+                  const adRes = await fetch(
+                    `https://graph.facebook.com/v21.0/${leadData.ad_id}?fields=name&access_token=${pageAccessToken}`
+                  );
+                  const adData = await adRes.json().catch(() => null);
+                  if (adData?.name) adName = adData.name;
+                } catch {}
+              }
+
               const fieldData: Array<{ name: string; values: string[] }> = Array.isArray(leadData.field_data)
                 ? leadData.field_data
                 : [];
@@ -310,14 +332,40 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Determine service category from adset
-        const leadServices: string[] = ["Tours & Packages"];
-        const lowerAdset = adsetName.toLowerCase();
+        // Determine service category from adset (or campaign/ad/form)
+        // Options: "Domestic Tours", "International Tours", "Flights/Hotels", "Others"
+        const lowerAdset = (adsetName || "").toLowerCase();
+        const lowerCampaign = (campaignName || "").toLowerCase();
+        const lowerAd = (adName || "").toLowerCase();
+        const lowerForm = extraFormFields.join(" ").toLowerCase();
+
+        let determinedService = "Domestic Tours"; // Default tour category
         if (lowerAdset.includes("international")) {
-          leadServices.unshift("International Tours");
+          determinedService = "International Tours";
         } else if (lowerAdset.includes("domestic")) {
-          leadServices.unshift("Domestic Tours");
+          determinedService = "Domestic Tours";
+        } else if (
+          lowerCampaign.includes("international") ||
+          lowerAd.includes("international") ||
+          lowerForm.includes("international")
+        ) {
+          determinedService = "International Tours";
+        } else if (
+          lowerCampaign.includes("domestic") ||
+          lowerAd.includes("domestic") ||
+          lowerForm.includes("domestic")
+        ) {
+          determinedService = "Domestic Tours";
+        } else if (
+          lowerAdset.includes("flight") ||
+          lowerAdset.includes("hotel") ||
+          lowerCampaign.includes("flight") ||
+          lowerCampaign.includes("hotel")
+        ) {
+          determinedService = "Flights/Hotels";
         }
+
+        const leadServices: string[] = [determinedService];
 
         // Keep ONLY customer form answers (no campaign, adset, ad, assigned, or form ID metadata)
         const formAnswers = extraFormFields.length > 0

@@ -462,13 +462,15 @@ export default function LeadDrawer({
   // Pipeline fields
   const [color, setColor] = useState(lead.color ?? "");
   const [notes, setNotes] = useState(lead.notes ?? "");
-  const [selectedServices, setSelectedServices] = useState<string[]>(
-    lead.services && lead.services.length > 0
+  const [selectedServices, setSelectedServices] = useState<string[]>(() => {
+    const rawList = lead.services && lead.services.length > 0
       ? lead.services
       : lead.serviceType
       ? [lead.serviceType]
-      : ["Tours & Packages"]
-  );
+      : [];
+    const filtered = rawList.filter((s) => Boolean(s) && s !== "Tours & Packages");
+    return filtered.length > 0 ? filtered : ["Domestic Tours"];
+  });
   const [stage, setStage] = useState<Stage>(lead.stage);
   const [value, setValue] = useState<number>(lead.value ?? 0);
   // Payment fields

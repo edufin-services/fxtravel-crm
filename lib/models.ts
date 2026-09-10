@@ -64,7 +64,7 @@ const LeadSchema = new Schema({
   services: [String],
 
   // FXPertise Forex & Remittance Fields
-  serviceType: { type: String, default: "Tours & Packages" },
+  serviceType: { type: String, default: "Domestic Tours" },
   sourceCurrency: { type: String, default: "INR" },
   targetCurrency: { type: String, default: "USD" },
   exchangeRate: { type: Number, default: 86.5 },

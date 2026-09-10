@@ -238,7 +238,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 5. Categorize Service Type
-    let serviceType = "Tours & Packages";
+    let serviceType = "Domestic Tours";
     if (rawService) {
       const catLower = rawService.toLowerCase();
       if (
@@ -260,13 +260,21 @@ export async function POST(request: NextRequest) {
       ) {
         serviceType = "International SIM";
       } else if (
-        catLower.includes("tour") ||
-        catLower.includes("travel") ||
-        catLower.includes("package") ||
+        catLower.includes("international")
+      ) {
+        serviceType = "International Tours";
+      } else if (
         catLower.includes("flight") ||
         catLower.includes("hotel")
       ) {
-        serviceType = "Tours & Packages";
+        serviceType = "Flights/Hotels";
+      } else if (
+        catLower.includes("domestic") ||
+        catLower.includes("tour") ||
+        catLower.includes("travel") ||
+        catLower.includes("package")
+      ) {
+        serviceType = "Domestic Tours";
       } else {
         serviceType = rawService;
       }

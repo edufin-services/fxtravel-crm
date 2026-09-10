@@ -511,7 +511,8 @@ function createSyncTrigger() {
                       <option value="Currency Exchange">Currency Exchange</option>
                       <option value="Forex Card Reload">Forex Card Reload</option>
                       <option value="International SIM">International SIM</option>
-                      <option value="Tours & Packages">Tours & Packages</option>
+                      <option value="Domestic Tours">Domestic Tours</option>
+                      <option value="International Tours">International Tours</option>
                     </select>
                   </div>
 

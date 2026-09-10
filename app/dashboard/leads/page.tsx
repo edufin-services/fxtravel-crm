@@ -452,10 +452,12 @@ function LeadsPageContent() {
       const matchChannel = channelFilter === "All" || l.channel === channelFilter;
 
       // 3. Service Filter
+      const activeServices = (l.services && l.services.length > 0 ? l.services : l.serviceType ? [l.serviceType] : [])
+        .filter((s) => Boolean(s) && s !== "Tours & Packages");
       const matchService =
         serviceFilter === "All Services" ||
-        (l.services && l.services.includes(serviceFilter)) ||
-        l.serviceType === serviceFilter;
+        activeServices.includes(serviceFilter) ||
+        (serviceFilter === "Domestic Tours" && (l.services?.includes("Tours & Packages") || l.serviceType === "Tours & Packages"));
 
       // 4. Date Range Filter
       let matchDate = true;
@@ -767,15 +769,21 @@ function LeadsPageContent() {
                           )}
 
                           {/* Services Badges */}
-                          {((deal.services && deal.services.length > 0) || deal.serviceType) && (
-                            <div className="mt-2.5 flex flex-wrap gap-1.5">
-                              {(deal.services && deal.services.length > 0 ? deal.services : [deal.serviceType!]).map((svc) => (
-                                <span key={svc} className="rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-bold text-emerald-800 shadow-2xs">
-                                  {svc}
-                                </span>
-                              ))}
-                            </div>
-                          )}
+                          {(() => {
+                            const rawList = deal.services && deal.services.length > 0 ? deal.services : deal.serviceType ? [deal.serviceType] : [];
+                            const filtered = rawList.filter((s) => Boolean(s) && s !== "Tours & Packages");
+                            const displayList = filtered.length > 0 ? filtered : rawList.includes("Tours & Packages") ? ["Domestic Tours"] : [];
+                            if (displayList.length === 0) return null;
+                            return (
+                              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                                {displayList.map((svc) => (
+                                  <span key={svc} className="rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-bold text-emerald-800 shadow-2xs">
+                                    {svc}
+                                  </span>
+                                ))}
+                              </div>
+                            );
+                          })()}
 
                           {/* Time + Note Popup Trigger Button */}
                           <div className="mt-3 flex items-center justify-between gap-2 pt-1">
@@ -960,15 +968,19 @@ function LeadsPageContent() {
                         {/* Services */}
                         <td className="px-5 py-3.5">
                           <div className="flex flex-wrap gap-1 max-w-[220px]">
-                            {((deal.services && deal.services.length > 0) || deal.serviceType) ? (
-                              (deal.services && deal.services.length > 0 ? deal.services : [deal.serviceType!]).map((svc) => (
+                            {(() => {
+                              const rawList = deal.services && deal.services.length > 0 ? deal.services : deal.serviceType ? [deal.serviceType] : [];
+                              const filtered = rawList.filter((s) => Boolean(s) && s !== "Tours & Packages");
+                              const displayList = filtered.length > 0 ? filtered : rawList.includes("Tours & Packages") ? ["Domestic Tours"] : [];
+                              if (displayList.length === 0) {
+                                return <span className="text-zinc-300 text-xs">—</span>;
+                              }
+                              return displayList.map((svc) => (
                                 <span key={svc} className="rounded-md bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 text-[11px] font-bold text-emerald-800 shadow-2xs">
                                   {svc}
                                 </span>
-                              ))
-                            ) : (
-                              <span className="text-zinc-300 text-xs">—</span>
-                            )}
+                              ));
+                            })()}
                           </div>
                         </td>
 
@@ -1400,7 +1412,7 @@ function AddDealModal({
   const [phone, setPhone] = useState("");
   const [stageVal, setStageVal] = useState<Stage>(stage);
   const [value, setValue] = useState<number | "">("");
-  const [selectedServices, setSelectedServices] = useState<string[]>(["Tours & Packages"]);
+  const [selectedServices, setSelectedServices] = useState<string[]>(["Domestic Tours"]);
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);

@@ -302,6 +302,22 @@ function toPlain<T>(doc: unknown): T {
   if (result.stage === "Completed") {
     result.stage = "Confirmed";
   }
+  if (Array.isArray(result.services)) {
+    if (result.services.includes("Tours & Packages")) {
+      const hasTour = (result.services as string[]).some((s) => s === "Domestic Tours" || s === "International Tours");
+      if (hasTour) {
+        result.services = (result.services as string[]).filter((s) => s !== "Tours & Packages");
+      } else {
+        const notesText = `${String(result.notes || "")} ${String(result.formNotes || "")}`.toLowerCase();
+        const fallback = notesText.includes("international") ? "International Tours" : "Domestic Tours";
+        result.services = (result.services as string[]).map((s) => (s === "Tours & Packages" ? fallback : s));
+      }
+    }
+  }
+  if (result.serviceType === "Tours & Packages") {
+    const notesText = `${String(result.notes || "")} ${String(result.formNotes || "")}`.toLowerCase();
+    result.serviceType = notesText.includes("international") ? "International Tours" : "Domestic Tours";
+  }
   return result as T;
 }
 

@@ -259,6 +259,7 @@ export type EmailReportLog = {
   sentAt: string;
   status: "success" | "failed";
   leadCount: number;
+  connectedCount?: number;
   stageChangeCount: number;
   confirmedCount: number;
   periodStart?: string;
@@ -1535,6 +1536,7 @@ export async function updateReportSettings(updates: Partial<ReportSettings>): Pr
  */
 export async function claimDailyCronSlot(slotKey: string): Promise<boolean> {
   await dbConnect();
+  await getReportSettings();
   const res = await ReportSettingsModel.findOneAndUpdate(
     {
       id: "report_settings",
@@ -1557,6 +1559,7 @@ export async function claimDailyCronSlot(slotKey: string): Promise<boolean> {
  */
 export async function claimWeeklyCronSlot(slotKey: string): Promise<boolean> {
   await dbConnect();
+  await getReportSettings();
   const res = await ReportSettingsModel.findOneAndUpdate(
     {
       id: "report_settings",

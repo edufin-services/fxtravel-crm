@@ -37,14 +37,16 @@ export interface ActivityReportData {
   recipient: string;
   stats: {
     totalNewLeads: number;
+    totalConnected: number;
     totalStageChanges: number;
     totalConfirmed: number;
     totalConfirmedValue: number;
     channelBreakdown: Record<string, number>;
     stageBreakdown: Record<string, number>;
-    agentBreakdown: Record<string, { newLeads: number; stageChanges: number; confirmed: number }>;
+    agentBreakdown: Record<string, { newLeads: number; connected: number; stageChanges: number; confirmed: number }>;
   };
   newLeads: ReportItem[];
+  connectedLeads: ReportItem[];
   stageChanges: ReportItem[];
   confirmedLeads: ReportItem[];
   allActivities: LeadActivity[];
@@ -94,16 +96,17 @@ export async function generateActivityReport(
   }).lean();
 
   const newLeadsMap = new Map<string, ReportItem>();
+  const connectedLeadsMap = new Map<string, ReportItem>();
   const stageChangesList: ReportItem[] = [];
   const confirmedLeadsMap = new Map<string, ReportItem>();
 
   const channelBreakdown: Record<string, number> = {};
   const stageBreakdown: Record<string, number> = {};
-  const agentBreakdown: Record<string, { newLeads: number; stageChanges: number; confirmed: number }> = {};
+  const agentBreakdown: Record<string, { newLeads: number; connected: number; stageChanges: number; confirmed: number }> = {};
 
   const ensureAgent = (name: string) => {
     if (!agentBreakdown[name]) {
-      agentBreakdown[name] = { newLeads: 0, stageChanges: 0, confirmed: 0 };
+      agentBreakdown[name] = { newLeads: 0, connected: 0, stageChanges: 0, confirmed: 0 };
     }
     return agentBreakdown[name];
   };
@@ -129,12 +132,22 @@ export async function generateActivityReport(
       newLeadsMap.set(act.leadId, item);
       channelBreakdown[item.channel || "Other"] = (channelBreakdown[item.channel || "Other"] || 0) + 1;
       ensureAgent(ownerName).newLeads += 1;
+      if (act.newStage === "Connected") {
+        connectedLeadsMap.set(act.leadId, item);
+        ensureAgent(ownerName).connected += 1;
+      }
     } else if (act.type === "stage_change") {
       stageChangesList.push(item);
       if (act.newStage) {
         stageBreakdown[act.newStage] = (stageBreakdown[act.newStage] || 0) + 1;
       }
       ensureAgent(ownerName).stageChanges += 1;
+
+      // Auto-cross-register if transitioned to Connected!
+      if (act.newStage === "Connected" && !connectedLeadsMap.has(act.leadId)) {
+        connectedLeadsMap.set(act.leadId, item);
+        ensureAgent(ownerName).connected += 1;
+      }
 
       // Auto-cross-register if transitioned to Confirmed!
       if (act.newStage === "Confirmed" && !confirmedLeadsMap.has(act.leadId)) {
@@ -159,6 +172,7 @@ export async function generateActivityReport(
   for (const l of leadsInPeriod) {
     const ownerName = userMap.get(l.ownerId) || "Unassigned";
     const wasCreatedInPeriod = l.createdAt >= periodStart && l.createdAt <= periodEnd;
+    const wasUpdatedInPeriod = !!(l.updatedAt && l.updatedAt >= periodStart && l.updatedAt <= periodEnd);
 
     if (wasCreatedInPeriod && !newLeadsMap.has(l.id)) {
       const item: ReportItem = {
@@ -176,6 +190,26 @@ export async function generateActivityReport(
       newLeadsMap.set(l.id, item);
       channelBreakdown[item.channel || "Other"] = (channelBreakdown[item.channel || "Other"] || 0) + 1;
       ensureAgent(ownerName).newLeads += 1;
+    }
+
+    const isConnectedInPeriod =
+      l.stage === "Connected" && (wasCreatedInPeriod || wasUpdatedInPeriod);
+
+    if (isConnectedInPeriod && !connectedLeadsMap.has(l.id)) {
+      const item: ReportItem = {
+        leadId: l.id,
+        leadName: l.name,
+        phone: l.phone,
+        email: l.email,
+        channel: l.channel || "WhatsApp",
+        ownerName,
+        newStage: "Connected",
+        value: l.value || 0,
+        details: `Connected Lead (${l.serviceType || "Forex / CRM"})`,
+        timestamp: l.updatedAt || l.createdAt,
+      };
+      connectedLeadsMap.set(l.id, item);
+      ensureAgent(ownerName).connected += 1;
     }
 
     const isConfirmedInPeriod =
@@ -203,6 +237,9 @@ export async function generateActivityReport(
   const newLeads = Array.from(newLeadsMap.values()).sort(
     (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
   );
+  const connectedLeads = Array.from(connectedLeadsMap.values()).sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  );
   const confirmedLeads = Array.from(confirmedLeadsMap.values()).sort(
     (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
   );
@@ -224,6 +261,7 @@ export async function generateActivityReport(
     recipient,
     stats: {
       totalNewLeads: newLeads.length,
+      totalConnected: connectedLeads.length,
       totalStageChanges: stageChanges.length,
       totalConfirmed: confirmedLeads.length,
       totalConfirmedValue,
@@ -232,6 +270,7 @@ export async function generateActivityReport(
       agentBreakdown,
     },
     newLeads,
+    connectedLeads,
     stageChanges,
     confirmedLeads,
     allActivities: activities,
@@ -297,6 +336,18 @@ export function buildReportEmailHtml(data: ActivityReportData): string {
     </tr>`
   ).join("");
 
+  // Connected leads section
+  const connectedRows = (data.connectedLeads || []).slice(0, 30).map(
+    (item) => `
+    <tr style="border-bottom:1px solid #f4f4f5;">
+      <td style="padding:10px 12px;font-weight:700;color:#18181b;">${item.leadName}</td>
+      <td style="padding:10px 12px;color:#52525b;font-size:12px;">${item.phone || "—"}</td>
+      <td style="padding:10px 12px;color:#52525b;font-size:12px;"><span style="display:inline-block;padding:2px 6px;font-size:10px;font-weight:600;border-radius:6px;background:#fef3c7;color:#b45309;">${item.channel}</span></td>
+      <td style="padding:10px 12px;color:#18181b;font-weight:600;font-size:12px;">${item.ownerName || "Unassigned"}</td>
+      <td style="padding:10px 12px;color:#a1a1aa;font-size:11px;text-align:right;">${formatDate(item.timestamp)}</td>
+    </tr>`
+  ).join("");
+
   // Stage changes section
   const stageRows = data.stageChanges.slice(0, 30).map(
     (item) => `
@@ -332,6 +383,7 @@ export function buildReportEmailHtml(data: ActivityReportData): string {
     <tr style="border-bottom:1px solid #f4f4f5;">
       <td style="padding:8px 12px;font-weight:600;color:#18181b;">${name}</td>
       <td style="padding:8px 12px;text-align:center;font-weight:700;color:#18181b;">${s.newLeads}</td>
+      <td style="padding:8px 12px;text-align:center;font-weight:700;color:#d97706;">${s.connected || 0}</td>
       <td style="padding:8px 12px;text-align:center;font-weight:700;color:#3b82f6;">${s.stageChanges}</td>
       <td style="padding:8px 12px;text-align:center;font-weight:700;color:#047857;">${s.confirmed}</td>
     </tr>`
@@ -351,10 +403,10 @@ export function buildReportEmailHtml(data: ActivityReportData): string {
   .header h1 { margin:0; font-size:22px; font-weight:800; letter-spacing:-0.5px; color:#ffffff; }
   .header p { margin:6px 0 0 0; font-size:13px; color:#a1a1aa; }
   .content { padding:28px 36px; }
-  .kpi-grid { width:100%; border-collapse:separate; border-spacing:10px 0; margin-bottom:28px; }
-  .kpi-card { background:#fafafa; border:1px solid #e4e4e7; border-radius:12px; padding:16px; text-align:center; }
-  .kpi-num { font-size:24px; font-weight:800; color:#18181b; line-height:1.2; }
-  .kpi-label { font-size:11px; font-weight:700; color:#71717a; text-transform:uppercase; letter-spacing:0.3px; margin-top:4px; }
+  .kpi-grid { width:100%; border-collapse:separate; border-spacing:8px 0; margin-bottom:28px; }
+  .kpi-card { background:#fafafa; border:1px solid #e4e4e7; border-radius:12px; padding:14px 8px; text-align:center; }
+  .kpi-num { font-size:22px; font-weight:800; color:#18181b; line-height:1.2; }
+  .kpi-label { font-size:10px; font-weight:700; color:#71717a; text-transform:uppercase; letter-spacing:0.3px; margin-top:4px; }
   .section-title { font-size:14px; font-weight:800; color:#18181b; text-transform:uppercase; letter-spacing:0.5px; margin:24px 0 12px 0; display:flex; align-items:center; }
   .table-box { width:100%; border-collapse:collapse; background:#ffffff; border:1px solid #e4e4e7; border-radius:10px; overflow:hidden; font-size:12px; margin-bottom:20px; }
   .table-box th { background:#f8fafc; padding:10px 12px; font-size:10px; font-weight:700; text-transform:uppercase; color:#64748b; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0; }
@@ -374,22 +426,26 @@ export function buildReportEmailHtml(data: ActivityReportData): string {
 
   <div class="content">
     <!-- Executive KPI Grid -->
-    <table class="kpi-grid" style="margin-left:-10px;width:calc(100% + 20px);">
+    <table class="kpi-grid" style="margin-left:-6px;width:calc(100% + 12px);">
       <tr>
-        <td class="kpi-card" style="width:25%;">
+        <td class="kpi-card" style="width:20%;">
           <div class="kpi-num" style="color:#0284c7;">+${data.stats.totalNewLeads}</div>
           <div class="kpi-label">New Leads</div>
         </td>
-        <td class="kpi-card" style="width:25%;">
+        <td class="kpi-card" style="width:20%;">
+          <div class="kpi-num" style="color:#d97706;">${data.stats.totalConnected || 0}</div>
+          <div class="kpi-label">Connected</div>
+        </td>
+        <td class="kpi-card" style="width:20%;">
           <div class="kpi-num" style="color:#8b5cf6;">${data.stats.totalStageChanges}</div>
           <div class="kpi-label">Stage Changes</div>
         </td>
-        <td class="kpi-card" style="width:25%;">
+        <td class="kpi-card" style="width:20%;">
           <div class="kpi-num" style="color:#059669;">${data.stats.totalConfirmed}</div>
           <div class="kpi-label">Confirmed</div>
         </td>
-        <td class="kpi-card" style="width:25%;">
-          <div class="kpi-num" style="color:#18181b;font-size:18px;">${data.stats.totalConfirmedValue ? formatCurrency(data.stats.totalConfirmedValue) : "—"}</div>
+        <td class="kpi-card" style="width:20%;">
+          <div class="kpi-num" style="color:#18181b;font-size:15px;">${data.stats.totalConfirmedValue ? formatCurrency(data.stats.totalConfirmedValue) : "—"}</div>
           <div class="kpi-label">Confirmed Vol</div>
         </td>
       </tr>
@@ -417,7 +473,28 @@ export function buildReportEmailHtml(data: ActivityReportData): string {
       }
     </div>
 
-    <!-- Section 2: Stage Changes -->
+    <!-- Section 2: Connected Leads -->
+    <div style="margin-top:24px;">
+      <h3 style="font-size:14px;font-weight:800;color:#b45309;margin:0 0 10px 0;">Connected Leads (${(data.connectedLeads || []).length})</h3>
+      ${
+        (data.connectedLeads || []).length > 0
+          ? `<table class="table-box">
+              <thead>
+                <tr>
+                  <th style="text-align:left;">Client Name</th>
+                  <th style="text-align:left;">Phone</th>
+                  <th style="text-align:left;">Source</th>
+                  <th style="text-align:left;">Executive</th>
+                  <th style="text-align:right;">Connected At</th>
+                </tr>
+              </thead>
+              <tbody>${connectedRows}</tbody>
+            </table>`
+          : `<div class="table-box empty-state">No leads reached Connected stage in this period.</div>`
+      }
+    </div>
+
+    <!-- Section 3: Stage Changes -->
     <div style="margin-top:24px;">
       <h3 style="font-size:14px;font-weight:800;color:#18181b;margin:0 0 10px 0;">Lead Stage Progressions (${data.stageChanges.length})</h3>
       ${
@@ -438,7 +515,7 @@ export function buildReportEmailHtml(data: ActivityReportData): string {
       }
     </div>
 
-    <!-- Section 3: New Leads Created -->
+    <!-- Section 4: New Leads Created -->
     <div style="margin-top:24px;">
       <h3 style="font-size:14px;font-weight:800;color:#18181b;margin:0 0 10px 0;">Newly Acquired Inquiries (${data.newLeads.length})</h3>
       ${
@@ -460,7 +537,7 @@ export function buildReportEmailHtml(data: ActivityReportData): string {
       }
     </div>
 
-    <!-- Section 4: Team & Channel Activity Summary -->
+    <!-- Section 5: Team & Channel Activity Summary -->
     ${
       Object.keys(data.stats.agentBreakdown).length > 0
         ? `<div style="margin-top:24px;">
@@ -470,6 +547,7 @@ export function buildReportEmailHtml(data: ActivityReportData): string {
                 <tr>
                   <th style="text-align:left;">Executive</th>
                   <th style="text-align:center;">New Leads Handled</th>
+                  <th style="text-align:center;">Connected</th>
                   <th style="text-align:center;">Stage Updates</th>
                   <th style="text-align:center;">Deals Confirmed</th>
                 </tr>
@@ -509,6 +587,7 @@ Coverage: ${formatDate(data.periodStart)} to ${formatDate(data.periodEnd)} (IST)
 
 --- EXECUTIVE SUMMARY ---
 • New Leads: ${data.stats.totalNewLeads}
+• Connected Leads: ${data.stats.totalConnected || 0}
 • Stage Transitions: ${data.stats.totalStageChanges}
 • Confirmed Leads: ${data.stats.totalConfirmed}
 • Total Confirmed Volume: ${formatCurrency(data.stats.totalConfirmedValue)}
@@ -521,6 +600,18 @@ ${
         .map(
           (l) =>
             `• ${l.leadName} (${l.phone || "No phone"}) - Value: ${formatCurrency(l.value || 0)} - Agent: ${l.ownerName || "Unassigned"} - ${formatDate(l.timestamp)}`
+        )
+        .join("\n")
+}
+
+--- CONNECTED LEADS (${(data.connectedLeads || []).length}) ---
+${
+  (data.connectedLeads || []).length === 0
+    ? "No connected leads."
+    : (data.connectedLeads || [])
+        .map(
+          (c) =>
+            `• ${c.leadName} (${c.phone || "No phone"}) | Source: ${c.channel || "N/A"} | Agent: ${c.ownerName || "Unassigned"} | ${formatDate(c.timestamp)}`
         )
         .join("\n")
 }
@@ -662,6 +753,7 @@ export async function sendActivityReportEmail(options?: {
       sentAt: new Date().toISOString(),
       status: "failed",
       leadCount: reportData.stats.totalNewLeads,
+      connectedCount: reportData.stats.totalConnected,
       stageChangeCount: reportData.stats.totalStageChanges,
       confirmedCount: reportData.stats.totalConfirmed,
       periodStart: reportData.periodStart,
@@ -701,6 +793,7 @@ export async function sendActivityReportEmail(options?: {
       sentAt: new Date().toISOString(),
       status: "success",
       leadCount: reportData.stats.totalNewLeads,
+      connectedCount: reportData.stats.totalConnected,
       stageChangeCount: reportData.stats.totalStageChanges,
       confirmedCount: reportData.stats.totalConfirmed,
       periodStart: reportData.periodStart,
@@ -728,6 +821,7 @@ export async function sendActivityReportEmail(options?: {
       sentAt: new Date().toISOString(),
       status: "failed",
       leadCount: reportData.stats.totalNewLeads,
+      connectedCount: reportData.stats.totalConnected,
       stageChangeCount: reportData.stats.totalStageChanges,
       confirmedCount: reportData.stats.totalConfirmed,
       periodStart: reportData.periodStart,

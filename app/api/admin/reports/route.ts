@@ -76,8 +76,6 @@ export async function PATCH(request: NextRequest) {
   if (typeof body.weeklyEnabled === "boolean") updates.weeklyEnabled = body.weeklyEnabled;
   if (typeof body.dailyReportTime === "string") {
     updates.dailyReportTime = body.dailyReportTime;
-    // Reset daily claim lock so the new schedule time can trigger today
-    updates.lastDailyCronDate = "";
   }
   if (typeof body.weeklyReportDay === "number") updates.weeklyReportDay = body.weeklyReportDay;
 

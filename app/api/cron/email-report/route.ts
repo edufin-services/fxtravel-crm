@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { claimDailyCronSlot, claimWeeklyCronSlot } from "@/lib/db";
+import { claimDailyCronSlot, claimWeeklyCronSlot, getRecipientsFromSettings, getReportSettings } from "@/lib/db";
 import { sendActivityReportEmail } from "@/lib/reports";
 import { getSession } from "@/lib/session";
 
@@ -44,6 +44,9 @@ async function handleReportCron(request: NextRequest) {
     );
   }
 
+  const settings = await getReportSettings();
+  const configuredRecipients = getRecipientsFromSettings(settings);
+
   // Today in Asia/Kolkata (IST)
   const istDateFormatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata",
@@ -55,46 +58,37 @@ async function handleReportCron(request: NextRequest) {
 
   const results: any[] = [];
 
-  if (periodParam === "all" || periodParam === "both") {
+  const shouldSendDaily = periodParam === "all" || periodParam === "both" || periodParam === "daily";
+  const shouldSendWeekly = periodParam === "all" || periodParam === "both" || periodParam === "weekly";
+
+  if (shouldSendDaily) {
     let dailyRes: any = { skipped: true, reason: "Already dispatched today" };
-    if (force || (await claimDailyCronSlot(todayIstDate))) {
+    if (!settings.dailyEnabled && !force) {
+      dailyRes = { skipped: true, reason: "Daily reports are disabled in settings" };
+    } else if (force || (await claimDailyCronSlot(todayIstDate))) {
       dailyRes = await sendActivityReportEmail({
         period: "daily",
         customRecipient: recipientParam,
-        isScheduledCron: true,
-      });
-    }
-
-    let weeklyRes: any = { skipped: true, reason: "Already dispatched this week" };
-    if (force || (await claimWeeklyCronSlot(todayIstDate))) {
-      weeklyRes = await sendActivityReportEmail({
-        period: "weekly",
-        customRecipient: recipientParam,
-        isScheduledCron: true,
-      });
-    }
-
-    results.push({ period: "daily", ...dailyRes }, { period: "weekly", ...weeklyRes });
-  } else if (periodParam === "weekly") {
-    let weeklyRes: any = { skipped: true, reason: "Already dispatched this week" };
-    if (force || (await claimWeeklyCronSlot(todayIstDate))) {
-      weeklyRes = await sendActivityReportEmail({
-        period: "weekly",
-        customRecipient: recipientParam,
-        isScheduledCron: true,
-      });
-    }
-    results.push({ period: "weekly", ...weeklyRes });
-  } else {
-    let dailyRes: any = { skipped: true, reason: "Already dispatched today" };
-    if (force || (await claimDailyCronSlot(todayIstDate))) {
-      dailyRes = await sendActivityReportEmail({
-        period: "daily",
-        customRecipient: recipientParam,
+        recipients: recipientParam ? undefined : (configuredRecipients.length > 0 ? configuredRecipients : undefined),
         isScheduledCron: true,
       });
     }
     results.push({ period: "daily", ...dailyRes });
+  }
+
+  if (shouldSendWeekly) {
+    let weeklyRes: any = { skipped: true, reason: "Already dispatched this week" };
+    if (!settings.weeklyEnabled && !force) {
+      weeklyRes = { skipped: true, reason: "Weekly reports are disabled in settings" };
+    } else if (force || (await claimWeeklyCronSlot(todayIstDate))) {
+      weeklyRes = await sendActivityReportEmail({
+        period: "weekly",
+        customRecipient: recipientParam,
+        recipients: recipientParam ? undefined : (configuredRecipients.length > 0 ? configuredRecipients : undefined),
+        isScheduledCron: true,
+      });
+    }
+    results.push({ period: "weekly", ...weeklyRes });
   }
 
   return NextResponse.json({

@@ -44,13 +44,13 @@ export async function checkAndDispatchScheduledReports(): Promise<void> {
     const recipients = getRecipientsFromSettings(settings);
 
     // 2. Check Daily Report:
-    // Dispatches once per scheduled time slot (e.g. 2026-09-09_20:00) using atomic DB claim
+    // Dispatches strictly once per calendar day (todayIstDate) using atomic DB claim
     if (settings.dailyEnabled && isPastScheduledTime) {
-      const dailySlotKey = `${todayIstDate}_${scheduledTime}`;
+      const dailySlotKey = todayIstDate;
       const claimed = await claimDailyCronSlot(dailySlotKey);
       if (claimed) {
         console.log(
-          `[cron-scheduler] Scheduled daily report claimed for slot ${dailySlotKey}. Dispatching to ${recipients.length} recipients...`
+          `[cron-scheduler] Scheduled daily report claimed for date ${dailySlotKey}. Dispatching to ${recipients.length} recipients...`
         );
         await sendActivityReportEmail({
           period: "daily",
@@ -61,17 +61,17 @@ export async function checkAndDispatchScheduledReports(): Promise<void> {
     }
 
     // 3. Check Weekly Report:
-    // Dispatches once per designated day (default Sunday = 0) on or after scheduled time
+    // Dispatches strictly once per weekly designated day (todayIstDate) on or after scheduled time
     if (settings.weeklyEnabled) {
       const targetDay = settings.weeklyReportDay ?? 0;
       const isTargetDay = istDayOfWeek === targetDay;
 
       if (isTargetDay && isPastScheduledTime) {
-        const weeklySlotKey = `${todayIstDate}_${scheduledTime}`;
+        const weeklySlotKey = todayIstDate;
         const claimed = await claimWeeklyCronSlot(weeklySlotKey);
         if (claimed) {
           console.log(
-            `[cron-scheduler] Scheduled weekly report claimed for slot ${weeklySlotKey}. Dispatching to ${recipients.length} recipients...`
+            `[cron-scheduler] Scheduled weekly report claimed for date ${weeklySlotKey}. Dispatching to ${recipients.length} recipients...`
           );
           await sendActivityReportEmail({
             period: "weekly",
@@ -90,6 +90,12 @@ export async function checkAndDispatchScheduledReports(): Promise<void> {
  * Initializes the in-process background scheduler interval
  */
 export function initReportScheduler(): void {
+  // On Vercel serverless, Vercel Crons handle schedules reliably via HTTP (see vercel.json).
+  // Running an in-memory setInterval loop inside serverless lambdas causes duplicate dispatches and race conditions.
+  if (process.env.VERCEL) {
+    return;
+  }
+
   if (globalScheduler.__reportSchedulerRunning) return;
   globalScheduler.__reportSchedulerRunning = true;
 

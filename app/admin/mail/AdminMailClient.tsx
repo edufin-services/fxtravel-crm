@@ -122,7 +122,7 @@ export default function AdminMailClient({ initialSettings, initialLogs }: Props)
       if (res.ok && data.success) {
         setStatusMessage({
           type: "success",
-          text: `Success: ${data.message} (${data.reportData?.stats?.totalNewLeads || 0} new leads, ${data.reportData?.stats?.totalStageChanges || 0} stage changes, ${data.reportData?.stats?.totalConfirmed || 0} confirmed).`,
+          text: `Success: ${data.message} (${data.reportData?.stats?.totalNewLeads || 0} new leads, ${data.reportData?.stats?.totalConnected || 0} connected, ${data.reportData?.stats?.totalStageChanges || 0} stage changes, ${data.reportData?.stats?.totalConfirmed || 0} confirmed).`,
         });
         // Refresh logs
         const logsRes = await fetch("/api/admin/reports");
@@ -837,6 +837,7 @@ export default function AdminMailClient({ initialSettings, initialLogs }: Props)
                 <th className="px-4 py-3">Report Type</th>
                 <th className="px-4 py-3">Recipient</th>
                 <th className="px-4 py-3 text-center">New Leads</th>
+                <th className="px-4 py-3 text-center">Connected</th>
                 <th className="px-4 py-3 text-center">Stage Changes</th>
                 <th className="px-4 py-3 text-center">Confirmed Deals</th>
                 <th className="px-4 py-3">Status</th>
@@ -845,7 +846,7 @@ export default function AdminMailClient({ initialSettings, initialLogs }: Props)
             <tbody className="divide-y divide-zinc-100 font-medium">
               {logs.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-zinc-400 font-medium">
+                  <td colSpan={8} className="px-4 py-8 text-center text-zinc-400 font-medium">
                     No email reports have been dispatched yet. Click "Send Daily Report Now" above to trigger your first digest.
                   </td>
                 </tr>
@@ -868,6 +869,7 @@ export default function AdminMailClient({ initialSettings, initialLogs }: Props)
                     </td>
                     <td className="px-4 py-3 font-mono text-[11px] text-zinc-700">{log.recipient}</td>
                     <td className="px-4 py-3 text-center font-bold text-zinc-900">+{log.leadCount}</td>
+                    <td className="px-4 py-3 text-center font-bold text-amber-600">{log.connectedCount ?? 0}</td>
                     <td className="px-4 py-3 text-center font-bold text-blue-600">{log.stageChangeCount}</td>
                     <td className="px-4 py-3 text-center font-bold text-emerald-700">{log.confirmedCount}</td>
                     <td className="px-4 py-3">

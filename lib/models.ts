@@ -356,6 +356,7 @@ const EmailReportLogSchema = new Schema({
   sentAt: { type: String, required: true, index: true },
   status: { type: String, enum: ["success", "failed"], default: "success" },
   leadCount: { type: Number, default: 0 },
+  connectedCount: { type: Number, default: 0 },
   stageChangeCount: { type: Number, default: 0 },
   confirmedCount: { type: Number, default: 0 },
   periodStart: { type: String, default: "" },

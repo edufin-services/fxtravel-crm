@@ -18,6 +18,7 @@ const UserSchema = new Schema({
   createdAt: { type: String, required: true },
   role: { type: String, enum: ["admin", "user", "branch_vendor", "corporate_hod", "corporate_employee"], default: "user" },
   branchId: String,
+  branchName: String,
   corporateId: String,
   companyWebsite: String,
   companyIndustry: String,
@@ -272,6 +273,8 @@ const AdminSettingsSchema = new Schema({
   companyTimezone: { type: String, default: "Asia/Kolkata (IST)" },
   passwordHash: String,
   metaRoundRobinIndex: { type: Number, default: 0 },
+  kolkataRoundRobinIndex: { type: Number, default: 0 },
+  delhiRoundRobinIndex: { type: Number, default: 0 },
 });
 
 export const AdminSettingsModel = models.AdminSettings ?? model("AdminSettings", AdminSettingsSchema);

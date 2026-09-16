@@ -37,6 +37,8 @@ interface User {
   name: string;
   email: string;
   company?: string;
+  branchId?: string;
+  branchName?: string;
 }
 
 interface Props {
@@ -84,6 +86,29 @@ export default function AdminBranchesClient({ initialLeads, initialBranches, use
 
   // User lookup map
   const userMap = useMemo(() => new Map(users.map((u) => [u.id, u.name])), [users]);
+
+  // Branch user cohorts
+  const delhiUsers = useMemo(
+    () =>
+      users.filter((u) => {
+        const b = (u.branchName || "").toLowerCase();
+        const id = (u.branchId || "").toLowerCase();
+        const email = (u.email || "").toLowerCase();
+        return b.includes("delhi") || id.includes("delhi") || (!u.branchId && email.includes("sheeba"));
+      }),
+    [users]
+  );
+
+  const kolkataUsers = useMemo(
+    () =>
+      users.filter((u) => {
+        const b = (u.branchName || "").toLowerCase();
+        const id = (u.branchId || "").toLowerCase();
+        const email = (u.email || "").toLowerCase();
+        return b.includes("kolkata") || id.includes("kolkata") || (!u.branchId && email.includes("mouparna"));
+      }),
+    [users]
+  );
 
   // Helper to categorize lead branch
   function getLeadBranchKey(l: Lead): "delhi" | "kolkata" | "unassigned" {
@@ -479,20 +504,27 @@ export default function AdminBranchesClient({ initialLeads, initialBranches, use
             </div>
           </div>
 
-          {/* Acquisition Channels Breakdown */}
+          {/* Branch Users & Round-Robin Status */}
           <div className="rounded-xl bg-zinc-50/80 p-3 border border-zinc-100 space-y-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block">
-              Acquisition Attribution Channels
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(branchStats.delhi.channels).map(([ch, count]) => (
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block">
+                Branch Users ({delhiUsers.length})
+              </span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                {delhiUsers.length > 1 ? `Round-Robin Active (${delhiUsers.length} Users)` : `Dedicated Assignment`}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2 items-center">
+              {delhiUsers.map((u) => (
                 <span
-                  key={ch}
-                  className="rounded-lg bg-white border border-zinc-200/80 px-2.5 py-1 text-xs font-semibold text-zinc-800 shadow-2xs"
+                  key={u.id}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-white border border-zinc-200/80 px-2.5 py-1 text-xs font-semibold text-zinc-800 shadow-2xs"
                 >
-                  <strong className="text-blue-600 font-extrabold">{count}</strong> {ch}
+                  <span className="h-2 w-2 rounded-full bg-blue-500" />
+                  {u.name}
                 </span>
               ))}
+              {delhiUsers.length === 0 && <span className="text-xs text-zinc-400">No users assigned</span>}
             </div>
           </div>
         </div>
@@ -582,20 +614,27 @@ export default function AdminBranchesClient({ initialLeads, initialBranches, use
             </div>
           </div>
 
-          {/* Acquisition Channels Breakdown */}
+          {/* Branch Users & Round-Robin Status */}
           <div className="rounded-xl bg-zinc-50/80 p-3 border border-zinc-100 space-y-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block">
-              Acquisition Attribution Channels
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(branchStats.kolkata.channels).map(([ch, count]) => (
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block">
+                Branch Users ({kolkataUsers.length})
+              </span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                {kolkataUsers.length > 1 ? `Round-Robin Active (${kolkataUsers.length} Users)` : `Dedicated Assignment`}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2 items-center">
+              {kolkataUsers.map((u) => (
                 <span
-                  key={ch}
-                  className="rounded-lg bg-white border border-zinc-200/80 px-2.5 py-1 text-xs font-semibold text-zinc-800 shadow-2xs"
+                  key={u.id}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-white border border-zinc-200/80 px-2.5 py-1 text-xs font-semibold text-zinc-800 shadow-2xs"
                 >
-                  <strong className="text-purple-600 font-extrabold">{count}</strong> {ch}
+                  <span className="h-2 w-2 rounded-full bg-purple-500" />
+                  {u.name}
                 </span>
               ))}
+              {kolkataUsers.length === 0 && <span className="text-xs text-zinc-400">No users assigned</span>}
             </div>
           </div>
         </div>

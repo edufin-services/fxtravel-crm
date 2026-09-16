@@ -2,8 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { DEFAULT_USER_PASSWORD, BRANCHES } from "@/lib/constants";
 
-type Agent = { id: string; name: string; email: string; company: string; createdAt: string };
+type Agent = {
+  id: string;
+  name: string;
+  email: string;
+  company: string;
+  branchId?: string;
+  branchName?: string;
+  createdAt: string;
+};
 
 const GRADIENTS: Record<string, string> = {
   A:"from-rose-400 to-rose-600",B:"from-pink-400 to-pink-600",C:"from-fuchsia-400 to-fuchsia-600",
@@ -23,6 +32,7 @@ export default function AdminAgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editAgent, setEditAgent] = useState<Agent | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteName, setDeleteName] = useState("");
   const [query, setQuery] = useState("");
@@ -38,11 +48,22 @@ export default function AdminAgentsPage() {
     const q = query.trim().toLowerCase();
     if (!q) return agents;
     return agents.filter(
-      (a) => a.name.toLowerCase().includes(q) || a.email.toLowerCase().includes(q) || a.company.toLowerCase().includes(q)
+      (a) =>
+        a.name.toLowerCase().includes(q) ||
+        a.email.toLowerCase().includes(q) ||
+        a.company.toLowerCase().includes(q) ||
+        (a.branchName && a.branchName.toLowerCase().includes(q))
     );
   }, [agents, query]);
 
-  async function handleCreate(data: { name: string; company: string; email: string; password: string }) {
+  async function handleCreate(data: {
+    name: string;
+    company: string;
+    email: string;
+    password: string;
+    branchId: string;
+    branchName: string;
+  }) {
     const res = await fetch("/api/admin/agents", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -52,6 +73,30 @@ export default function AdminAgentsPage() {
     if (res.ok) {
       setAgents((prev) => [...prev, body.agent]);
       setShowModal(false);
+    }
+    return body;
+  }
+
+  async function handleUpdate(
+    id: string,
+    data: {
+      name: string;
+      company: string;
+      email: string;
+      password?: string;
+      branchId?: string;
+      branchName?: string;
+    }
+  ) {
+    const res = await fetch(`/api/admin/agents/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    const body = await res.json();
+    if (res.ok && body.agent) {
+      setAgents((prev) => prev.map((a) => (a.id === id ? body.agent : a)));
+      setEditAgent(null);
     }
     return body;
   }
@@ -92,7 +137,7 @@ export default function AdminAgentsPage() {
         </svg>
         <input
           type="text"
-          placeholder="Search users..."
+          placeholder="Search users by name, email, or branch..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="w-full bg-transparent text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none"
@@ -102,16 +147,16 @@ export default function AdminAgentsPage() {
       {/* Table card */}
       <div className="rounded-2xl border border-zinc-200/80 bg-white overflow-hidden shadow-xs">
         {/* Header row */}
-        <div className="grid grid-cols-[2fr_1.5fr_1fr_140px] gap-4 px-5 py-3 bg-zinc-50/80 border-b border-zinc-100 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
+        <div className="grid grid-cols-[2fr_1.6fr_1fr_200px] gap-4 px-5 py-3 bg-zinc-50/80 border-b border-zinc-100 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
           <span>User</span>
-          <span>Company</span>
+          <span>Company &amp; Branch</span>
           <span>Joined</span>
-          <span></span>
+          <span className="text-right">Actions</span>
         </div>
 
         {/* Skeleton rows */}
         {loading && [...Array(4)].map((_, i) => (
-          <div key={i} className="grid grid-cols-[2fr_1.5fr_1fr_140px] gap-4 px-5 py-4 border-b border-zinc-50 animate-pulse">
+          <div key={i} className="grid grid-cols-[2fr_1.6fr_1fr_200px] gap-4 px-5 py-4 border-b border-zinc-50 animate-pulse">
             <div className="flex items-center gap-3">
               <div className="h-9 w-9 rounded-full bg-zinc-200 flex-none" />
               <div className="space-y-1.5">
@@ -134,57 +179,78 @@ export default function AdminAgentsPage() {
               </svg>
             </div>
             <p className="text-sm font-semibold text-zinc-600">
-              {agents.length === 0 ? "No branches yet" : "No branches match your search"}
+              {agents.length === 0 ? "No users yet" : "No users match your search"}
             </p>
             {agents.length === 0 && (
               <button onClick={() => setShowModal(true)} className="mt-3 text-xs font-semibold text-emerald-600 hover:text-emerald-700">
-                + Create first branch
+                + Create first user
               </button>
             )}
           </div>
         )}
 
         {/* Data rows */}
-        {!loading && filteredAgents.map((agent, idx) => (
-          <div
-            key={agent.id}
-            className="grid grid-cols-[2fr_1.5fr_1fr_140px] gap-4 px-5 py-3.5 items-center hover:bg-zinc-50/60 transition-colors group"
-            style={{ borderBottom: idx < filteredAgents.length - 1 ? "1px solid #f4f4f5" : "none" }}
-          >
-            <Link href={`/admin/agents/${agent.id}`} className="flex items-center gap-3">
-              <div className={`flex h-9 w-9 flex-none items-center justify-center rounded-full bg-gradient-to-br ${grad(agent.name)} text-[10px] font-bold text-white shadow-sm`}>
-                {initials(agent.name)}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-zinc-900 group-hover:text-emerald-600 transition-colors leading-tight">{agent.name}</p>
-                <p className="text-xs text-zinc-400">{agent.email}</p>
-              </div>
-            </Link>
-            <p className="text-sm text-zinc-500">{agent.company || "—"}</p>
-            <p className="text-xs text-zinc-400">
-              {new Date(agent.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-            </p>
-            <div className="flex items-center gap-2">
-              <Link
-                href={`/admin/agents/${agent.id}`}
-                className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-semibold text-zinc-600 hover:border-emerald-200 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
-              >
-                View
+        {!loading && filteredAgents.map((agent, idx) => {
+          const isKolkata = (agent.branchName || "").toLowerCase().includes("kolkata");
+          return (
+            <div
+              key={agent.id}
+              className="grid grid-cols-[2fr_1.6fr_1fr_200px] gap-4 px-5 py-3.5 items-center hover:bg-zinc-50/60 transition-colors group"
+              style={{ borderBottom: idx < filteredAgents.length - 1 ? "1px solid #f4f4f5" : "none" }}
+            >
+              <Link href={`/admin/agents/${agent.id}`} className="flex items-center gap-3">
+                <div className={`flex h-9 w-9 flex-none items-center justify-center rounded-full bg-gradient-to-br ${grad(agent.name)} text-[10px] font-bold text-white shadow-sm`}>
+                  {initials(agent.name)}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-zinc-900 group-hover:text-emerald-600 transition-colors leading-tight">{agent.name}</p>
+                  <p className="text-xs text-zinc-400">{agent.email}</p>
+                </div>
               </Link>
-              <button
-                onClick={() => { setDeleteId(agent.id); setDeleteName(agent.name); }}
-                className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-semibold text-zinc-600 hover:border-red-200 hover:text-red-500 hover:bg-red-50 transition-colors"
-              >
-                Delete
-              </button>
+              <div>
+                <p className="text-sm text-zinc-700 font-medium">{agent.company || "—"}</p>
+                <div className="mt-0.5">
+                  <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                    isKolkata
+                      ? "bg-purple-50 text-purple-700 border-purple-200"
+                      : "bg-blue-50 text-blue-700 border-blue-200"
+                  }`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${isKolkata ? "bg-purple-500" : "bg-blue-500"}`} />
+                    {agent.branchName || "Delhi NCR Branch"}
+                  </span>
+                </div>
+              </div>
+              <p className="text-xs text-zinc-400">
+                {new Date(agent.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+              </p>
+              <div className="flex items-center gap-1.5 justify-end">
+                <Link
+                  href={`/admin/agents/${agent.id}`}
+                  className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-semibold text-zinc-600 hover:border-emerald-200 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                >
+                  View
+                </Link>
+                <button
+                  onClick={() => setEditAgent(agent)}
+                  className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-semibold text-zinc-600 hover:border-emerald-200 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => { setDeleteId(agent.id); setDeleteName(agent.name); }}
+                  className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-semibold text-zinc-600 hover:border-red-200 hover:text-red-500 hover:bg-red-50 transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {/* Footer */}
         {!loading && filteredAgents.length > 0 && (
           <div className="border-t border-zinc-50 px-5 py-2.5 text-xs text-zinc-400">
-            {filteredAgents.length} branch{filteredAgents.length !== 1 ? "es" : ""} total
+            {filteredAgents.length} user{filteredAgents.length !== 1 ? "s" : ""} across 2 branches
           </div>
         )}
       </div>
@@ -192,6 +258,15 @@ export default function AdminAgentsPage() {
       {/* Create Modal */}
       {showModal && (
         <CreateAgentModal onClose={() => setShowModal(false)} onCreate={handleCreate} />
+      )}
+
+      {/* Edit Modal */}
+      {editAgent && (
+        <EditAgentModal
+          agent={editAgent}
+          onClose={() => setEditAgent(null)}
+          onUpdate={handleUpdate}
+        />
       )}
 
       {/* Delete Confirm */}
@@ -206,7 +281,7 @@ export default function AdminAgentsPage() {
             </div>
             <h2 className="text-base font-bold text-zinc-900">Delete {deleteName}?</h2>
             <p className="mt-1.5 text-sm text-zinc-500">
-              This permanently deletes the branch account. Their leads will remain in the system.
+              This permanently deletes the user account. Their leads will remain in the system.
             </p>
             <div className="mt-5 flex gap-3">
               <button
@@ -232,12 +307,20 @@ function CreateAgentModal({
   onCreate,
 }: {
   onClose: () => void;
-  onCreate: (data: { name: string; company: string; email: string; password: string }) => Promise<{ error?: string }>;
+  onCreate: (data: {
+    name: string;
+    company: string;
+    email: string;
+    password: string;
+    branchId: string;
+    branchName: string;
+  }) => Promise<{ error?: string }>;
 }) {
   const [name, setName] = useState("");
   const [company, setCompany] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [branchId, setBranchId] = useState<string>(BRANCHES[0].id);
+  const [password, setPassword] = useState(DEFAULT_USER_PASSWORD);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -246,7 +329,15 @@ function CreateAgentModal({
     e.preventDefault();
     setError("");
     setSaving(true);
-    const result = await onCreate({ name, company, email, password });
+    const chosenBranch = BRANCHES.find((b) => b.id === branchId) || BRANCHES[0];
+    const result = await onCreate({
+      name,
+      company,
+      email,
+      password,
+      branchId: chosenBranch.id,
+      branchName: chosenBranch.name,
+    });
     setSaving(false);
     if (result.error) setError(result.error);
   }
@@ -260,7 +351,7 @@ function CreateAgentModal({
         <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-5">
           <div>
             <h2 className="text-base font-bold text-zinc-900">Create User</h2>
-            <p className="text-xs text-zinc-400 mt-0.5">User can log in immediately after creation</p>
+            <p className="text-xs text-zinc-400 mt-0.5">User will be assigned to branch with round-robin lead allocation</p>
           </div>
           <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-xl text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -288,7 +379,34 @@ function CreateAgentModal({
             <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jane@acme.com" className={inputCls} />
           </div>
           <div>
-            <label className="block mb-1.5 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Password *</label>
+            <label className="block mb-1.5 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Branch *</label>
+            <select
+              required
+              value={branchId}
+              onChange={(e) => setBranchId(e.target.value)}
+              className={inputCls}
+            >
+              {BRANCHES.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name} ({b.city})
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-zinc-400">
+              Multiple users in the same branch receive incoming leads via round-robin.
+            </p>
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Password *</label>
+              <button
+                type="button"
+                onClick={() => { setPassword(DEFAULT_USER_PASSWORD); setShowPassword(true); }}
+                className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 hover:underline transition-colors"
+              >
+                Use default ({DEFAULT_USER_PASSWORD})
+              </button>
+            </div>
             <div className="relative">
               <input
                 required minLength={8}
@@ -312,6 +430,9 @@ function CreateAgentModal({
                 )}
               </button>
             </div>
+            <p className="mt-1.5 text-[11px] text-zinc-400">
+              Default password is <span className="font-mono font-medium text-emerald-700">{DEFAULT_USER_PASSWORD}</span> until changed.
+            </p>
           </div>
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose}
@@ -321,6 +442,176 @@ function CreateAgentModal({
             <button type="submit" disabled={saving}
               className="flex-1 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 py-2.5 text-sm font-bold text-white hover:from-emerald-500 hover:to-emerald-400 disabled:opacity-50 shadow-sm shadow-emerald-600/20 transition-all">
               {saving ? "Creating..." : "Create User"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function EditAgentModal({
+  agent,
+  onClose,
+  onUpdate,
+}: {
+  agent: Agent;
+  onClose: () => void;
+  onUpdate: (id: string, data: {
+    name: string;
+    company: string;
+    email: string;
+    password?: string;
+    branchId?: string;
+    branchName?: string;
+  }) => Promise<{ error?: string }>;
+}) {
+  const [name, setName] = useState(agent.name);
+  const [company, setCompany] = useState(agent.company);
+  const [email, setEmail] = useState(agent.email);
+  const [branchId, setBranchId] = useState(
+    agent.branchId || (agent.branchName?.toLowerCase().includes("kolkata") ? "br-kolkata-01" : "br-delhi-01")
+  );
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setSaving(true);
+    const chosenBranch = BRANCHES.find((b) => b.id === branchId) || BRANCHES[0];
+    const payload: {
+      name: string;
+      company: string;
+      email: string;
+      password?: string;
+      branchId: string;
+      branchName: string;
+    } = {
+      name: name.trim(),
+      company: company.trim(),
+      email: email.trim(),
+      branchId: chosenBranch.id,
+      branchName: chosenBranch.name,
+    };
+    if (password.trim()) {
+      payload.password = password.trim();
+    }
+    const result = await onUpdate(agent.id, payload);
+    setSaving(false);
+    if (result.error) setError(result.error);
+  }
+
+  const inputCls = "w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-100 transition-colors";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-zinc-200/80 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-5">
+          <div>
+            <h2 className="text-base font-bold text-zinc-900">Edit User</h2>
+            <p className="text-xs text-zinc-400 mt-0.5">Update branch attribution, profile, and credentials</p>
+          </div>
+          <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-xl text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700">{error}</div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block mb-1.5 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Full Name *</label>
+              <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Jane Doe" className={inputCls} />
+            </div>
+            <div>
+              <label className="block mb-1.5 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Company *</label>
+              <input required value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Acme Inc." className={inputCls} />
+            </div>
+          </div>
+          <div>
+            <label className="block mb-1.5 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Email Address *</label>
+            <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jane@acme.com" className={inputCls} />
+          </div>
+          <div>
+            <label className="block mb-1.5 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Branch *</label>
+            <select
+              required
+              value={branchId}
+              onChange={(e) => setBranchId(e.target.value)}
+              className={inputCls}
+            >
+              {BRANCHES.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name} ({b.city})
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-zinc-400">
+              Changing branch updates round-robin lead allocation for this user.
+            </p>
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
+                Password <span className="normal-case font-normal text-zinc-400">(optional)</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setPassword(DEFAULT_USER_PASSWORD);
+                  setShowPassword(true);
+                }}
+                className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 hover:underline transition-colors"
+              >
+                Reset to default ({DEFAULT_USER_PASSWORD})
+              </button>
+            </div>
+            <div className="relative">
+              <input
+                minLength={8}
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Leave blank to keep unchanged"
+                className={`${inputCls} pr-10`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-zinc-400 hover:text-zinc-600"
+              >
+                {showPassword ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  </svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                  </svg>
+                )}
+              </button>
+            </div>
+            <p className="mt-1.5 text-[11px] text-zinc-400">
+              Default password is <span className="font-mono font-medium text-emerald-700">{DEFAULT_USER_PASSWORD}</span> until changed.
+            </p>
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose}
+              className="flex-1 rounded-xl border border-zinc-200 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50 transition-colors">
+              Cancel
+            </button>
+            <button type="submit" disabled={saving}
+              className="flex-1 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 py-2.5 text-sm font-bold text-white hover:from-emerald-500 hover:to-emerald-400 disabled:opacity-50 shadow-sm shadow-emerald-600/20 transition-all">
+              {saving ? "Saving..." : "Save Changes"}
             </button>
           </div>
         </form>

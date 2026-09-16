@@ -71,3 +71,12 @@ export const OPERATING_CITIES = [
 export const AGENTS = [
   "Unassigned",
 ] as const;
+
+export const DEFAULT_USER_PASSWORD = "FXtravel@2026";
+
+export const BRANCHES = [
+  { id: "br-delhi-01", name: "Delhi NCR Branch", city: "Delhi NCR" },
+  { id: "br-kolkata-01", name: "Kolkata Branch", city: "Kolkata" },
+] as const;
+
+export type BranchItem = (typeof BRANCHES)[number];

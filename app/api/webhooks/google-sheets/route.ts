@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createLead, getAllUsers, getUserById } from "@/lib/db";
+import { createLead, getAllUsers, getUserById, getNextBranchUserRoundRobin } from "@/lib/db";
 import { dbConnect } from "@/lib/mongoose";
 import { LeadModel, UserModel } from "@/lib/models";
 
@@ -224,9 +224,15 @@ export async function POST(request: NextRequest) {
     }
 
     if (!ownerId) {
-      const users = await getAllUsers();
-      if (users.length > 0) {
-        ownerId = users[0].id;
+      const branchCity = city || state || "";
+      const branchUser = await getNextBranchUserRoundRobin(branchCity);
+      if (branchUser) {
+        ownerId = branchUser.id;
+      } else {
+        const users = await getAllUsers();
+        if (users.length > 0) {
+          ownerId = users[0].id;
+        }
       }
     }
 

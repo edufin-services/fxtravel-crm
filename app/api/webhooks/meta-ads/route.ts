@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createLead, getAllUsers } from "@/lib/db";
+import { createLead, getAllUsers, getNextBranchUserRoundRobin } from "@/lib/db";
 import { AdminSettingsModel, LeadModel } from "@/lib/models";
 import { dbConnect } from "@/lib/mongoose";
 
@@ -289,42 +289,28 @@ export async function POST(request: NextRequest) {
           routingHaystack.includes("ghaziabad") ||
           String(formId).includes("1058624");
 
-        const users = await getAllUsers();
-        const mouparna = users.find(
-          (u) =>
-            u.email?.toLowerCase().includes("mouparna") ||
-            u.name?.toLowerCase().includes("mouparna")
-        );
-        const sheeba = users.find(
-          (u) =>
-            u.email?.toLowerCase().includes("sheeba") ||
-            u.name?.toLowerCase().includes("sheeba")
-        );
-
         let assignedOwnerId = "admin";
         let assignedOwnerName = "Admin";
         let routingReason = "Default Admin";
 
-        if (isKolkata && mouparna) {
-          assignedOwnerId = mouparna.id;
-          assignedOwnerName = mouparna.name;
-          routingReason = "Kolkata Campaign → Mouparna Banerjee";
+        if (isKolkata) {
           if (!leadCity) leadCity = "Kolkata";
-        } else if (isDelhi && sheeba) {
-          assignedOwnerId = sheeba.id;
-          assignedOwnerName = sheeba.name;
-          routingReason = "Delhi NCR Campaign → Sheeba Birla";
+          const assignedUser = await getNextBranchUserRoundRobin("kolkata");
+          if (assignedUser) {
+            assignedOwnerId = assignedUser.id;
+            assignedOwnerName = assignedUser.name;
+            routingReason = `Kolkata Branch Round-Robin → ${assignedOwnerName}`;
+          }
+        } else if (isDelhi) {
           if (!leadCity) leadCity = "Delhi NCR";
-        } else if (users.length > 0) {
-          // Atomically increment round-robin counter for non-campaign leads
-          const settings = await AdminSettingsModel.findOneAndUpdate(
-            { id: "admin_settings" },
-            { $inc: { metaRoundRobinIndex: 1 } },
-            { upsert: true, new: true }
-          );
-
-          const index = (settings.metaRoundRobinIndex || 0) % users.length;
-          const assignedUser = users[index];
+          const assignedUser = await getNextBranchUserRoundRobin("delhi");
+          if (assignedUser) {
+            assignedOwnerId = assignedUser.id;
+            assignedOwnerName = assignedUser.name;
+            routingReason = `Delhi NCR Branch Round-Robin → ${assignedOwnerName}`;
+          }
+        } else {
+          const assignedUser = await getNextBranchUserRoundRobin("all");
           if (assignedUser) {
             assignedOwnerId = assignedUser.id;
             assignedOwnerName = assignedUser.name;

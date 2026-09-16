@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { CHANNELS, SERVICES, STAGES, type Channel, type Stage } from "@/lib/constants";
+import { CHANNELS, SERVICES, STAGES, DEFAULT_USER_PASSWORD, type Channel, type Stage } from "@/lib/constants";
 import { formatRelativeTime } from "@/lib/format";
 import LeadDrawer, { type DrawerLead } from "@/app/dashboard/leads/LeadDrawer";
 import SetReminderModal from "@/app/dashboard/leads/SetReminderModal";
@@ -164,8 +164,24 @@ export default function AgentKanbanClient({ agent, initialLeads }: { agent: Agen
   const searchParams = useSearchParams();
   const targetLeadId = searchParams.get("leadId") || searchParams.get("id");
 
+  const [currentAgent, setCurrentAgent] = useState<Agent>(agent);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [viewMode, setViewMode] = useState<"kanban" | "table">("kanban");
+
+  async function handleUpdateAgent(data: { name: string; company: string; email: string; password?: string }) {
+    const res = await fetch(`/api/admin/agents/${currentAgent.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    const body = await res.json();
+    if (res.ok && body.agent) {
+      setCurrentAgent(body.agent);
+      setShowEditModal(false);
+    }
+    return body;
+  }
 
   useEffect(() => {
     try {
@@ -385,30 +401,39 @@ export default function AgentKanbanClient({ agent, initialLeads }: { agent: Agen
           Back to Users List
         </Link>
 
-        <button
-          onClick={() => setModalStage("Initial")}
-          className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 active:scale-95 transition-all shadow-xs"
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14" strokeLinecap="round"/></svg>
-          Add Lead for {agent.name.split(" ")[0]}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowEditModal(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-xs font-bold text-zinc-700 hover:border-emerald-200 hover:text-emerald-700 hover:bg-emerald-50 active:scale-95 transition-all shadow-xs"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Edit User
+          </button>
+          <button
+            onClick={() => setModalStage("Initial")}
+            className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 active:scale-95 transition-all shadow-xs"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14" strokeLinecap="round"/></svg>
+            Add Lead for {currentAgent.name.split(" ")[0]}
+          </button>
+        </div>
       </div>
 
       {/* ── Agent Banner ────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-zinc-200/90 bg-white p-6 shadow-xs">
         <div className="flex items-center gap-4">
-          <div className={`flex h-14 w-14 flex-none items-center justify-center rounded-2xl bg-gradient-to-br ${grad(agent.name)} text-lg font-black text-white shadow-md`}>
-            {initials(agent.name)}
+          <div className={`flex h-14 w-14 flex-none items-center justify-center rounded-2xl bg-gradient-to-br ${grad(currentAgent.name)} text-lg font-black text-white shadow-md`}>
+            {initials(currentAgent.name)}
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-black text-zinc-900">{agent.name}</h1>
+              <h1 className="text-xl font-black text-zinc-900">{currentAgent.name}</h1>
               <span className="rounded-full bg-violet-50 text-violet-700 border border-violet-200 px-2.5 py-0.5 text-[10px] font-bold">
                 User Pipeline
               </span>
             </div>
-            <p className="text-xs text-zinc-500 mt-0.5">{agent.email} · {agent.company}</p>
-            <p className="text-[11px] text-zinc-400 mt-0.5">Joined {new Date(agent.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</p>
+            <p className="text-xs text-zinc-500 mt-0.5">{currentAgent.email} · {currentAgent.company}</p>
+            <p className="text-[11px] text-zinc-400 mt-0.5">Joined {new Date(currentAgent.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</p>
           </div>
         </div>
 
@@ -942,7 +967,7 @@ export default function AgentKanbanClient({ agent, initialLeads }: { agent: Agen
         />
       )}
       {modalStage && (
-        <AddDealModal stage={modalStage} agentName={agent.name} onClose={() => setModalStage(null)} onSubmit={handleAddDeal} />
+        <AddDealModal stage={modalStage} agentName={currentAgent.name} onClose={() => setModalStage(null)} onSubmit={handleAddDeal} />
       )}
 
       {reminderLead && (
@@ -989,6 +1014,14 @@ export default function AgentKanbanClient({ agent, initialLeads }: { agent: Agen
           onInvitationLetterChange={(doc) => patchLead(editingLead.id, { invitationLetter: doc })}
           onThirdPaymentInvoicesChange={(docs) => patchLead(editingLead.id, { thirdPaymentInvoices: docs })}
           onVisaDocumentsChange={(docs) => patchLead(editingLead.id, { visaDocuments: docs })}
+        />
+      )}
+
+      {showEditModal && (
+        <EditUserModal
+          agent={currentAgent}
+          onClose={() => setShowEditModal(false)}
+          onUpdate={handleUpdateAgent}
         />
       )}
     </div>
@@ -1228,6 +1261,137 @@ function ConfirmStageModal({
             {loading ? "Moving…" : isConfirmed ? "Confirm Deal" : "Confirm"}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function EditUserModal({
+  agent,
+  onClose,
+  onUpdate,
+}: {
+  agent: Agent;
+  onClose: () => void;
+  onUpdate: (data: { name: string; company: string; email: string; password?: string }) => Promise<{ error?: string }>;
+}) {
+  const [name, setName] = useState(agent.name);
+  const [company, setCompany] = useState(agent.company);
+  const [email, setEmail] = useState(agent.email);
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setSaving(true);
+    const payload: { name: string; company: string; email: string; password?: string } = {
+      name: name.trim(),
+      company: company.trim(),
+      email: email.trim(),
+    };
+    if (password.trim()) {
+      payload.password = password.trim();
+    }
+    const result = await onUpdate(payload);
+    setSaving(false);
+    if (result.error) setError(result.error);
+  }
+
+  const inputCls = "w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-100 transition-colors";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-zinc-200/80 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-5">
+          <div>
+            <h2 className="text-base font-bold text-zinc-900">Edit User</h2>
+            <p className="text-xs text-zinc-400 mt-0.5">Update credentials and user details</p>
+          </div>
+          <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-xl text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700">{error}</div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block mb-1.5 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Full Name *</label>
+              <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Jane Doe" className={inputCls} />
+            </div>
+            <div>
+              <label className="block mb-1.5 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Company *</label>
+              <input required value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Acme Inc." className={inputCls} />
+            </div>
+          </div>
+          <div>
+            <label className="block mb-1.5 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Email Address *</label>
+            <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jane@acme.com" className={inputCls} />
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
+                Password <span className="normal-case font-normal text-zinc-400">(optional)</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setPassword(DEFAULT_USER_PASSWORD);
+                  setShowPassword(true);
+                }}
+                className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 hover:underline transition-colors"
+              >
+                Reset to default ({DEFAULT_USER_PASSWORD})
+              </button>
+            </div>
+            <div className="relative">
+              <input
+                minLength={8}
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Leave blank to keep unchanged"
+                className={`${inputCls} pr-10`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-zinc-400 hover:text-zinc-600"
+              >
+                {showPassword ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  </svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                  </svg>
+                )}
+              </button>
+            </div>
+            <p className="mt-1.5 text-[11px] text-zinc-400">
+              Default password is <span className="font-mono font-medium text-emerald-700">{DEFAULT_USER_PASSWORD}</span> until changed.
+            </p>
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose}
+              className="flex-1 rounded-xl border border-zinc-200 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50 transition-colors">
+              Cancel
+            </button>
+            <button type="submit" disabled={saving}
+              className="flex-1 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 py-2.5 text-sm font-bold text-white hover:from-emerald-500 hover:to-emerald-400 disabled:opacity-50 shadow-sm shadow-emerald-600/20 transition-all">
+              {saving ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Fxpertise",
+  title: "Fxpertise Travel CRM",
   description: "AI CRM for sales & messaging automation",
   icons: {
     icon: "/fx-icon1.png",

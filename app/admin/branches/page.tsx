@@ -21,7 +21,14 @@ export default async function AdminBranchesPage() {
       <AdminBranchesClient
         initialLeads={leads}
         initialBranches={branches as any}
-        users={users.map((u) => ({ id: u.id, name: u.name, email: u.email, company: u.company }))}
+        users={users.map((u) => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          company: u.company,
+          branchId: u.branchId,
+          branchName: u.branchName,
+        }))}
       />
     </Suspense>
   );

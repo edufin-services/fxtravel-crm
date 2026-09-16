@@ -31,6 +31,8 @@ export type User = {
   phone?: string;
   passwordHash: string;
   createdAt: string;
+  branchId?: string;
+  branchName?: string;
   companyWebsite?: string;
   companyIndustry?: string;
   companyTimezone?: string;
@@ -345,6 +347,15 @@ export async function createUser(user: Omit<User, "id" | "createdAt">): Promise<
 export async function updateUserPassword(userId: string, passwordHash: string): Promise<void> {
   await dbConnect();
   await UserModel.updateOne({ id: userId }, { $set: { passwordHash } });
+}
+
+export async function updateUser(
+  userId: string,
+  updates: Partial<Pick<User, "name" | "company" | "email" | "phone" | "passwordHash" | "branchId" | "branchName">>
+): Promise<User | undefined> {
+  await dbConnect();
+  const doc = await UserModel.findOneAndUpdate({ id: userId }, { $set: updates }, { returnDocument: "after" });
+  return doc ? toPlain<User>(doc) : undefined;
 }
 
 export async function updateUserProfile(
@@ -1082,50 +1093,125 @@ export async function seedAccountData(_ownerId: string): Promise<void> {
 
 export async function getAllBranches() {
   await dbConnect();
-  let docs = await BranchModel.find();
-  if (docs.length === 0) {
-    const seedBranches = [
-      {
-        id: "br-delhi-01",
-        name: "FXPertise Delhi NCR Branch",
-        city: "Delhi NCR",
-        address: "Inner Circle, Connaught Place, New Delhi 110001",
-        phone: "+91 98100 11223",
-        email: "delhi@fxpertise.in",
-        kycStatus: "verified",
-        status: "active",
-        walletBalance: 180000,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: "br-kolkata-01",
-        name: "FXPertise Kolkata Branch",
-        city: "Kolkata",
-        address: "Park Street / Salt Lake Sector V, Kolkata 700016",
-        phone: "+91 98300 55443",
-        email: "kolkata@fxpertise.in",
-        kycStatus: "verified",
-        status: "active",
-        walletBalance: 150000,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: "br-mumbai-01",
-        name: "FXPertise Fort Branch (Main)",
-        city: "Mumbai",
-        address: "124 M.G. Road, Fort, Mumbai 400001",
-        phone: "+91 98200 12345",
-        email: "mumbai.fort@fxpertise.in",
-        kycStatus: "verified",
-        status: "active",
-        walletBalance: 150000,
-        createdAt: new Date().toISOString(),
-      },
-    ];
-    await BranchModel.insertMany(seedBranches).catch(() => {});
-    docs = await BranchModel.find();
+
+  // One-time migration fallback for legacy users created prior to branch selection
+  await UserModel.updateMany(
+    { $or: [{ branchId: { $exists: false } }, { branchId: null }, { branchId: "" }], email: { $regex: /mouparna/i } },
+    { $set: { branchId: "br-kolkata-01", branchName: "Kolkata Branch" } }
+  ).catch(() => {});
+  await UserModel.updateMany(
+    { $or: [{ branchId: { $exists: false } }, { branchId: null }, { branchId: "" }], email: { $regex: /sheeba/i } },
+    { $set: { branchId: "br-delhi-01", branchName: "Delhi NCR Branch" } }
+  ).catch(() => {});
+
+  const defaultBranches = [
+    {
+      id: "br-delhi-01",
+      name: "Delhi NCR Branch",
+      city: "Delhi NCR",
+      address: "Inner Circle, Connaught Place, New Delhi 110001",
+      phone: "+91 98100 11223",
+      email: "delhi@fxpertise.in",
+      kycStatus: "verified",
+      status: "active",
+      walletBalance: 180000,
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: "br-kolkata-01",
+      name: "Kolkata Branch",
+      city: "Kolkata",
+      address: "Park Street / Salt Lake Sector V, Kolkata 700016",
+      phone: "+91 98300 55443",
+      email: "kolkata@fxpertise.in",
+      kycStatus: "verified",
+      status: "active",
+      walletBalance: 150000,
+      createdAt: new Date().toISOString(),
+    },
+  ];
+
+  for (const b of defaultBranches) {
+    const existing = await BranchModel.findOne({ id: b.id });
+    if (!existing) {
+      await BranchModel.create(b).catch(() => {});
+    } else if (existing.name !== b.name) {
+      await BranchModel.updateOne({ id: b.id }, { $set: { name: b.name, city: b.city } }).catch(() => {});
+    }
   }
+
+  const docs = await BranchModel.find({
+    $or: [
+      { id: "br-delhi-01" },
+      { id: "br-kolkata-01" },
+      { city: { $regex: /delhi/i } },
+      { city: { $regex: /kolkata/i } },
+    ],
+  });
   return docs.map((d) => toPlain(d));
+}
+
+export async function getUsersByBranch(branchCityOrKey: string): Promise<User[]> {
+  await dbConnect();
+  const lower = branchCityOrKey.toLowerCase().trim();
+  const isKolkata = lower.includes("kolkata");
+  const isDelhi = lower.includes("delhi");
+
+  const allUsers = await getAllUsers();
+  return allUsers.filter((u) => {
+    const bId = (u.branchId || "").toLowerCase();
+    const bName = (u.branchName || "").toLowerCase();
+    const comp = (u.company || "").toLowerCase();
+    const email = (u.email || "").toLowerCase();
+    const name = (u.name || "").toLowerCase();
+
+    if (isKolkata) {
+      return (
+        bId.includes("kolkata") ||
+        bName.includes("kolkata") ||
+        comp.includes("kolkata") ||
+        (!u.branchId && (email.includes("mouparna") || name.includes("mouparna")))
+      );
+    }
+    if (isDelhi) {
+      return (
+        bId.includes("delhi") ||
+        bName.includes("delhi") ||
+        comp.includes("delhi") ||
+        (!u.branchId && (email.includes("sheeba") || name.includes("sheeba")))
+      );
+    }
+    return false;
+  });
+}
+
+export async function getNextBranchUserRoundRobin(branchCityOrKey: string): Promise<User | undefined> {
+  await dbConnect();
+  const lower = (branchCityOrKey || "").toLowerCase().trim();
+  const isKolkata = lower.includes("kolkata");
+
+  const branchUsers = await getUsersByBranch(branchCityOrKey);
+
+  if (branchUsers.length === 0) {
+    const all = await getAllUsers();
+    if (all.length === 0) return undefined;
+    return all[0];
+  }
+
+  if (branchUsers.length === 1) {
+    return branchUsers[0];
+  }
+
+  // Atomic round-robin across users in this specific branch
+  const fieldToInc = isKolkata ? "kolkataRoundRobinIndex" : "delhiRoundRobinIndex";
+  const updatedSettings = await AdminSettingsModel.findOneAndUpdate(
+    { id: "admin_settings" },
+    { $inc: { [fieldToInc]: 1 } },
+    { upsert: true, returnDocument: "after" }
+  );
+
+  const idx = ((updatedSettings as any)?.[fieldToInc] || 0) % branchUsers.length;
+  return branchUsers[idx];
 }
 
 export async function getBranchById(id: string) {

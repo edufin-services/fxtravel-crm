@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { getEmailReportLogs, getRecipientsFromSettings, getReportSettings, updateReportSettings } from "@/lib/db";
 import { generateActivityReport, sendActivityReportEmail } from "@/lib/reports";
 import { checkAndDispatchScheduledReports, initReportScheduler } from "@/lib/cron-scheduler";
@@ -81,7 +82,8 @@ export async function PATCH(request: NextRequest) {
 
   if (Array.isArray(body.recipientEmails)) {
     const cleaned = body.recipientEmails
-      .map((e: any) => String(e).trim().toLowerCase())
+      .flatMap((e: any) => String(e).split(","))
+      .map((e: string) => e.trim().toLowerCase())
       .filter((e: string) => e.length > 0 && e.includes("@"));
     updates.recipientEmails = Array.from(new Set(cleaned));
     updates.customRecipientEmail = updates.recipientEmails.join(", ");
@@ -95,6 +97,12 @@ export async function PATCH(request: NextRequest) {
   }
 
   const settings = await updateReportSettings(updates);
+
+  try {
+    revalidatePath("/admin/mail");
+  } catch (err) {
+    console.error("[api/reports] Revalidation error:", err);
+  }
 
   // Ensure scheduler is active and trigger check immediately
   initReportScheduler();

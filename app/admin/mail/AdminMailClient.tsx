@@ -46,20 +46,38 @@ export default function AdminMailClient({ initialSettings, initialLogs }: Props)
 
   const [recipientEmails, setRecipientEmails] = useState<string[]>(() => {
     if (initialSettings.recipientEmails && initialSettings.recipientEmails.length > 0) {
-      return initialSettings.recipientEmails;
+      return Array.from(
+        new Set(
+          initialSettings.recipientEmails
+            .flatMap((e) => (typeof e === "string" ? e.split(",") : []))
+            .map((e) => e.trim().toLowerCase())
+            .filter((e) => e.length > 0 && e.includes("@"))
+        )
+      );
     }
     if (initialSettings.customRecipientEmail?.trim()) {
-      return initialSettings.customRecipientEmail.split(",").map((e) => e.trim()).filter(Boolean);
+      return Array.from(
+        new Set(
+          initialSettings.customRecipientEmail
+            .split(",")
+            .map((e) => e.trim().toLowerCase())
+            .filter((e) => e.length > 0 && e.includes("@"))
+        )
+      );
     }
     return [];
   });
   const [newEmailInput, setNewEmailInput] = useState("");
   const [emailInputError, setEmailInputError] = useState("");
+  const [isSavingEmails, setIsSavingEmails] = useState(false);
+  const [emailSaveSuccess, setEmailSaveSuccess] = useState("");
 
   const [dailyTimeInput, setDailyTimeInput] = useState(settings.dailyReportTime || "20:00");
   const [dailyEnabled, setDailyEnabled] = useState(settings.dailyEnabled);
   const [weeklyEnabled, setWeeklyEnabled] = useState(settings.weeklyEnabled);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+
+  const hasUnsavedScheduleTime = dailyTimeInput !== (settings.dailyReportTime || "20:00");
 
   const timeParts = useMemo(() => parseTime24To12(dailyTimeInput), [dailyTimeInput]);
 
@@ -67,8 +85,9 @@ export default function AdminMailClient({ initialSettings, initialLogs }: Props)
     setDailyTimeInput(formatTimeTo24(h12, m, p));
   }
 
-  function handleAddEmail() {
+  async function handleAddEmail() {
     setEmailInputError("");
+    setEmailSaveSuccess("");
     const raw = newEmailInput.trim();
     if (!raw) return;
 
@@ -91,16 +110,153 @@ export default function AdminMailClient({ initialSettings, initialLogs }: Props)
     }
 
     if (validEmails.length === 0) {
-      setEmailInputError("Email already in the list.");
+      setEmailInputError("Email is already in the list.");
       return;
     }
 
-    setRecipientEmails((prev) => [...prev, ...validEmails]);
-    setNewEmailInput("");
+    const nextEmails = Array.from(new Set([...recipientEmails, ...validEmails]));
+    setIsSavingEmails(true);
+
+    try {
+      const res = await fetch("/api/admin/reports", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipientEmails: nextEmails,
+          dailyReportTime: dailyTimeInput,
+          dailyEnabled,
+          weeklyEnabled,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setRecipientEmails(data.settings.recipientEmails ?? nextEmails);
+        setSettings(data.settings);
+        setNewEmailInput("");
+        setEmailSaveSuccess(`${validEmails.join(", ")} added & saved.`);
+        setTimeout(() => setEmailSaveSuccess(""), 4000);
+      } else {
+        setEmailInputError(data.error || "Failed to save email to database.");
+      }
+    } catch (err: any) {
+      setEmailInputError(err?.message || "Network error while saving email.");
+    } finally {
+      setIsSavingEmails(false);
+    }
   }
 
-  function handleRemoveEmail(emailToRemove: string) {
-    setRecipientEmails((prev) => prev.filter((e) => e !== emailToRemove));
+  async function handleRemoveEmail(emailToRemove: string) {
+    setEmailInputError("");
+    setEmailSaveSuccess("");
+    const nextEmails = recipientEmails.filter((e) => e !== emailToRemove);
+    setIsSavingEmails(true);
+
+    try {
+      const res = await fetch("/api/admin/reports", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipientEmails: nextEmails,
+          dailyReportTime: dailyTimeInput,
+          dailyEnabled,
+          weeklyEnabled,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setRecipientEmails(data.settings.recipientEmails ?? nextEmails);
+        setSettings(data.settings);
+        setEmailSaveSuccess(`Removed ${emailToRemove}.`);
+        setTimeout(() => setEmailSaveSuccess(""), 4000);
+      } else {
+        setEmailInputError(data.error || "Failed to update email list.");
+      }
+    } catch (err: any) {
+      setEmailInputError(err?.message || "Network error removing email.");
+    } finally {
+      setIsSavingEmails(false);
+    }
+  }
+
+  async function handleClearAllEmails() {
+    setEmailInputError("");
+    setEmailSaveSuccess("");
+    if (!window.confirm("Remove all email recipients? Automated reports will not be sent until a recipient is added.")) {
+      return;
+    }
+    setIsSavingEmails(true);
+
+    try {
+      const res = await fetch("/api/admin/reports", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipientEmails: [],
+          dailyReportTime: dailyTimeInput,
+          dailyEnabled,
+          weeklyEnabled,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setRecipientEmails([]);
+        setSettings(data.settings);
+        setEmailSaveSuccess("All recipients removed & saved.");
+        setTimeout(() => setEmailSaveSuccess(""), 4000);
+      } else {
+        setEmailInputError(data.error || "Failed to clear email list.");
+      }
+    } catch (err: any) {
+      setEmailInputError(err?.message || "Network error clearing emails.");
+    } finally {
+      setIsSavingEmails(false);
+    }
+  }
+
+  async function handleToggleDaily() {
+    const nextVal = !dailyEnabled;
+    setDailyEnabled(nextVal);
+    try {
+      const res = await fetch("/api/admin/reports", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dailyEnabled: nextVal,
+          recipientEmails,
+          dailyReportTime: dailyTimeInput,
+          weeklyEnabled,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSettings(data.settings);
+      }
+    } catch (err) {
+      console.error("Failed to auto-save daily toggle:", err);
+    }
+  }
+
+  async function handleToggleWeekly() {
+    const nextVal = !weeklyEnabled;
+    setWeeklyEnabled(nextVal);
+    try {
+      const res = await fetch("/api/admin/reports", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          weeklyEnabled: nextVal,
+          recipientEmails,
+          dailyReportTime: dailyTimeInput,
+          dailyEnabled,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSettings(data.settings);
+      }
+    } catch (err) {
+      console.error("Failed to auto-save weekly toggle:", err);
+    }
   }
 
   async function handleSendReport(period: "daily" | "weekly") {
@@ -398,17 +554,29 @@ export default function AdminMailClient({ initialSettings, initialLogs }: Props)
                   <span className="rounded-full bg-zinc-900 text-white text-[10px] font-extrabold px-2 py-0.5">
                     {recipientEmails.length} {recipientEmails.length === 1 ? "Email" : "Emails"}
                   </span>
+                  {isSavingEmails && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-2 py-0.5 text-[10px] font-bold text-blue-700 animate-pulse">
+                      <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-spin"></span>
+                      Saving to database...
+                    </span>
+                  )}
+                  {!isSavingEmails && emailSaveSuccess && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700">
+                      ✓ {emailSaveSuccess}
+                    </span>
+                  )}
                 </div>
                 <p className="text-[11px] text-zinc-500 mt-0.5">
-                  These email addresses receive all automated daily digests and weekly summaries.
+                  These email addresses receive all automated daily digests and weekly summaries. Additions and removals are saved automatically.
                 </p>
               </div>
 
               {recipientEmails.length > 1 && (
                 <button
                   type="button"
-                  onClick={() => setRecipientEmails([])}
-                  className="text-[11px] font-semibold text-zinc-400 hover:text-rose-600 transition-colors cursor-pointer"
+                  onClick={handleClearAllEmails}
+                  disabled={isSavingEmails}
+                  className="text-[11px] font-semibold text-zinc-400 hover:text-rose-600 transition-colors cursor-pointer disabled:opacity-50"
                 >
                   Clear All
                 </button>
@@ -426,6 +594,7 @@ export default function AdminMailClient({ initialSettings, initialLogs }: Props)
               <input
                 type="email"
                 value={newEmailInput}
+                disabled={isSavingEmails}
                 onChange={(e) => {
                   setNewEmailInput(e.target.value);
                   if (emailInputError) setEmailInputError("");
@@ -437,18 +606,28 @@ export default function AdminMailClient({ initialSettings, initialLogs }: Props)
                   }
                 }}
                 placeholder="Enter email address (e.g. manager@fxpertise.in) and press Enter..."
-                className="w-full rounded-xl border border-zinc-200 bg-white pl-10 pr-24 py-2.5 text-xs font-medium text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 focus:outline-none transition-all shadow-2xs"
+                className="w-full rounded-xl border border-zinc-200 bg-white pl-10 pr-28 py-2.5 text-xs font-medium text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 focus:outline-none transition-all shadow-2xs disabled:bg-zinc-50"
               />
               <button
                 type="button"
                 onClick={handleAddEmail}
-                className="absolute right-1.5 top-1.5 bottom-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white font-bold px-3 text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                disabled={isSavingEmails || !newEmailInput.trim()}
+                className="absolute right-1.5 top-1.5 bottom-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white font-bold px-3 text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-                Add
+                {isSavingEmails ? (
+                  <>
+                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    Add
+                  </>
+                )}
               </button>
             </div>
             {emailInputError && (
@@ -477,7 +656,8 @@ export default function AdminMailClient({ initialSettings, initialLogs }: Props)
                     <button
                       type="button"
                       onClick={() => handleRemoveEmail(email)}
-                      className="text-zinc-400 hover:text-rose-600 hover:bg-rose-50 rounded-md p-1 transition-colors cursor-pointer"
+                      disabled={isSavingEmails}
+                      className="text-zinc-400 hover:text-rose-600 hover:bg-rose-50 rounded-md p-1 transition-colors cursor-pointer disabled:opacity-50"
                       title={`Remove ${email}`}
                     >
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -522,7 +702,7 @@ export default function AdminMailClient({ initialSettings, initialLogs }: Props)
                     type="button"
                     role="switch"
                     aria-checked={dailyEnabled}
-                    onClick={() => setDailyEnabled(!dailyEnabled)}
+                    onClick={handleToggleDaily}
                     className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                       dailyEnabled ? "bg-emerald-500" : "bg-zinc-200"
                     }`}
@@ -746,7 +926,7 @@ export default function AdminMailClient({ initialSettings, initialLogs }: Props)
                     type="button"
                     role="switch"
                     aria-checked={weeklyEnabled}
-                    onClick={() => setWeeklyEnabled(!weeklyEnabled)}
+                    onClick={handleToggleWeekly}
                     className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                       weeklyEnabled ? "bg-purple-600" : "bg-zinc-200"
                     }`}
@@ -791,14 +971,23 @@ export default function AdminMailClient({ initialSettings, initialLogs }: Props)
               <circle cx="12" cy="12" r="10" />
               <polyline points="12 6 12 12 14 14" />
             </svg>
-            <span>Changes are saved to the persistent database and apply to the next scheduled run.</span>
+            <span>
+              Recipient list and digest toggles save automatically.
+              {hasUnsavedScheduleTime && (
+                <strong className="text-emerald-700 ml-1">You have unsaved changes to the dispatch schedule time.</strong>
+              )}
+            </span>
           </div>
 
           <button
             type="button"
             onClick={handleSaveSettings}
             disabled={isSavingSettings}
-            className="cursor-pointer rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold px-6 py-2.5 text-xs shadow-sm transition-all disabled:opacity-50 flex items-center gap-2"
+            className={`cursor-pointer rounded-xl font-bold px-6 py-2.5 text-xs shadow-sm transition-all disabled:opacity-50 flex items-center gap-2 ${
+              hasUnsavedScheduleTime
+                ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200"
+                : "bg-zinc-900 hover:bg-zinc-800 text-white"
+            }`}
           >
             {isSavingSettings ? (
               <>
@@ -810,7 +999,7 @@ export default function AdminMailClient({ initialSettings, initialLogs }: Props)
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-emerald-400">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
-                Save Preferences
+                {hasUnsavedScheduleTime ? "Save Schedule Changes" : "Save Preferences"}
               </>
             )}
           </button>

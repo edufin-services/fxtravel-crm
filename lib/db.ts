@@ -1605,19 +1605,36 @@ export async function getReportSettings(): Promise<ReportSettings> {
     });
   }
   const plain = toPlain<ReportSettings>(doc);
-  // Backwards compatibility migration
-  if ((!plain.recipientEmails || plain.recipientEmails.length === 0) && plain.customRecipientEmail?.trim()) {
-    plain.recipientEmails = [plain.customRecipientEmail.trim()];
-  } else if (!plain.recipientEmails) {
-    plain.recipientEmails = [];
+  // Ensure recipientEmails is an array of unique, trimmed email strings
+  let emails: string[] = [];
+  if (Array.isArray(plain.recipientEmails) && plain.recipientEmails.length > 0) {
+    emails = plain.recipientEmails
+      .flatMap((e) => (typeof e === "string" ? e.split(",") : []))
+      .map((e) => e.trim().toLowerCase())
+      .filter((e) => e.length > 0 && e.includes("@"));
   }
+  if (emails.length === 0 && plain.customRecipientEmail?.trim()) {
+    emails = plain.customRecipientEmail
+      .split(",")
+      .map((e) => e.trim().toLowerCase())
+      .filter((e) => e.length > 0 && e.includes("@"));
+  }
+  plain.recipientEmails = Array.from(new Set(emails));
   return plain;
 }
 
 export function getRecipientsFromSettings(settings: ReportSettings): string[] {
-  const list = (settings.recipientEmails ?? []).map((e) => e.trim().toLowerCase()).filter(Boolean);
+  const list = (settings.recipientEmails ?? [])
+    .flatMap((e) => (typeof e === "string" ? e.split(",") : []))
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => e.length > 0 && e.includes("@"));
   if (list.length === 0 && settings.customRecipientEmail?.trim()) {
-    list.push(settings.customRecipientEmail.trim().toLowerCase());
+    list.push(
+      ...settings.customRecipientEmail
+        .split(",")
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e.length > 0 && e.includes("@"))
+    );
   }
   return Array.from(new Set(list));
 }

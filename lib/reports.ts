@@ -717,7 +717,7 @@ export async function sendActivityReportEmail(options?: {
     process.env.EMAIL_USER?.trim() ||
     localEnv.EMAIL_USER?.trim() ||
     settings.smtpUser?.trim() ||
-    "aayush.dubey@fxpertise.in";
+    "info@fxpertisetravel.com";
 
   const pass =
     process.env.EMAIL_PASS?.trim() ||

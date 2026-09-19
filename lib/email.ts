@@ -95,7 +95,7 @@ function buildText(name: string, stage: string): string {
 
 function getSmtpConfig() {
   const host = process.env.EMAIL_HOST?.trim() || "smtp.gmail.com";
-  const user = process.env.EMAIL_USER?.trim() || "aayush.dubey@fxpertise.in";
+  const user = process.env.EMAIL_USER?.trim() || "info@fxpertisetravel.com";
   const pass = process.env.EMAIL_PASS?.trim() || "hozp tupo vyxp wxyl";
   const port = Number(process.env.EMAIL_PORT ?? 587);
   const fromName = process.env.EMAIL_FROM_NAME?.trim() || "Fxpertise Travel CRM";

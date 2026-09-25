@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
   if (!session?.isAdmin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json().catch(() => null);
-  const { ownerId, name, channel, stage, phone, services, notes } = body ?? {};
+  const { ownerId, name, channel, stage, phone, services, notes, city, state } = body ?? {};
   const cleanPhone = typeof phone === "string" ? phone.replace(/\D/g, "") : "";
 
   if (
@@ -45,6 +45,8 @@ export async function POST(request: NextRequest) {
     phone: cleanPhone,
     services: Array.isArray(services) ? services : [],
     notes: typeof notes === "string" ? notes : "",
+    city: typeof city === "string" ? city.trim() : undefined,
+    state: typeof state === "string" ? state.trim() : undefined,
   });
 
   return NextResponse.json({ lead });

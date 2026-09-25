@@ -120,18 +120,21 @@ function getGradient(name: string) {
 
 // ── Inline field row ──────────────────────────────────────────────────────────
 
-function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
+function FieldRow({ label, icon, children }: { label: string; icon?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-3 min-h-[38px] border-b border-zinc-100 px-5 py-1">
-      <span className="w-44 shrink-0 text-sm text-zinc-400">{label}</span>
+    <div className="flex items-center gap-3 min-h-[44px] border-b border-zinc-100/90 px-5 py-1.5 hover:bg-zinc-50/50 transition-colors">
+      <div className="w-36 shrink-0 flex items-center gap-2">
+        {icon}
+        <span className="text-xs font-semibold text-zinc-500">{label}</span>
+      </div>
       <div className="flex-1 min-w-0">{children}</div>
     </div>
   );
 }
 
-const inputCls = "w-full text-sm text-zinc-900 bg-transparent outline-none py-1 px-2 -mx-2 rounded hover:bg-zinc-50 focus:bg-zinc-50 focus:ring-1 focus:ring-brand-400 placeholder:text-zinc-300 transition-colors";
-const selectCls = "w-full text-sm text-zinc-900 bg-transparent outline-none py-1 px-2 -mx-2 rounded hover:bg-zinc-50 focus:bg-zinc-50 focus:ring-1 focus:ring-brand-400 cursor-pointer transition-colors";
-const numInputCls = "w-full text-sm text-zinc-900 bg-transparent outline-none py-1 px-2 -mx-2 rounded hover:bg-zinc-50 focus:bg-zinc-50 focus:ring-1 focus:ring-brand-400 [appearance:textfield] transition-colors";
+const inputCls = "w-full text-xs font-semibold text-zinc-900 bg-zinc-50/70 border border-zinc-200/80 rounded-xl px-3 py-1.5 focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all placeholder:text-zinc-400";
+const selectCls = "w-full text-xs font-semibold text-zinc-900 bg-zinc-50/70 border border-zinc-200/80 rounded-xl px-3 py-1.5 focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none cursor-pointer transition-all";
+const numInputCls = "w-full text-xs font-semibold text-zinc-900 bg-zinc-50/70 border border-zinc-200/80 rounded-xl px-3 py-1.5 focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all";
 
 // ── Single-doc upload row ────────────────────────────────────────────────────
 
@@ -143,10 +146,10 @@ function SingleDocRow({
   onDelete: () => void; required?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-3 min-h-[42px] border-b border-zinc-100 px-5 py-2">
-      <div className="w-44 shrink-0 flex items-center gap-1.5">
-        <span className="text-xs font-semibold text-zinc-600">{label}</span>
-        {required && <span className="text-[9px] font-semibold uppercase tracking-wide text-amber-600 bg-amber-100 rounded-full px-1.5 py-0.5">req</span>}
+    <div className="flex items-center gap-3 min-h-[44px] border-b border-zinc-100/90 px-5 py-2 hover:bg-zinc-50/50 transition-colors">
+      <div className="w-36 shrink-0 flex items-center gap-1.5">
+        <span className="text-xs font-semibold text-zinc-500">{label}</span>
+        {required && <span className="text-[9px] font-bold uppercase tracking-wide text-amber-700 bg-amber-100 rounded-full px-1.5 py-0.5">req</span>}
       </div>
       <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
         {doc ? (
@@ -155,7 +158,7 @@ function SingleDocRow({
               href={doc.url}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 hover:text-brand-700 bg-brand-50 border border-brand-200/80 px-2.5 py-1 rounded-lg transition-colors truncate max-w-[200px]"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-xl transition-colors truncate max-w-[200px]"
               title={doc.name}
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="shrink-0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M10 13h4M10 17h4"/></svg>
@@ -167,7 +170,7 @@ function SingleDocRow({
           </div>
         ) : (
           <button type="button" onClick={() => inputRef.current?.click()} disabled={uploading}
-            className="text-xs text-brand-600 hover:text-brand-700 font-semibold disabled:opacity-50 border border-brand-200 bg-brand-50/50 hover:bg-brand-50 px-3 py-1 rounded-lg transition-colors">
+            className="text-xs text-zinc-700 hover:text-zinc-900 font-bold disabled:opacity-50 border border-zinc-200 bg-white hover:bg-zinc-50 px-3 py-1 rounded-xl transition-colors shadow-2xs">
             {uploading ? "Uploading..." : "Upload"}
           </button>
         )}
@@ -187,29 +190,29 @@ function ArrayDocRow({
   onDelete: (url: string) => void; required?: boolean;
 }) {
   return (
-    <div className="border-b border-zinc-100 px-5 py-2">
-      <div className="flex items-center gap-3 min-h-[36px]">
-        <div className="w-44 shrink-0 flex items-center gap-1.5">
-          <span className="text-xs font-semibold text-zinc-600">{label}</span>
-          {required && <span className="text-[9px] font-semibold uppercase tracking-wide text-amber-600 bg-amber-100 rounded-full px-1.5 py-0.5">req</span>}
+    <div className="border-b border-zinc-100/90 px-5 py-2 hover:bg-zinc-50/50 transition-colors">
+      <div className="flex items-center gap-3 min-h-[38px]">
+        <div className="w-36 shrink-0 flex items-center gap-1.5">
+          <span className="text-xs font-semibold text-zinc-500">{label}</span>
+          {required && <span className="text-[9px] font-bold uppercase tracking-wide text-amber-700 bg-amber-100 rounded-full px-1.5 py-0.5">req</span>}
         </div>
         <div className="flex-1 flex items-center gap-2">
           <button type="button" onClick={() => inputRef.current?.click()} disabled={uploading}
-            className="text-xs text-brand-600 hover:text-brand-700 font-semibold disabled:opacity-50 border border-brand-200 bg-brand-50/50 hover:bg-brand-50 px-3 py-1 rounded-lg transition-colors">
+            className="text-xs text-zinc-700 hover:text-zinc-900 font-bold disabled:opacity-50 border border-zinc-200 bg-white hover:bg-zinc-50 px-3 py-1 rounded-xl transition-colors shadow-2xs">
             {uploading ? "Uploading..." : docs.length > 0 ? `+ Upload (${docs.length})` : "Upload"}
           </button>
           <input ref={inputRef} type="file" multiple className="hidden" onChange={onUpload} />
         </div>
       </div>
       {docs.length > 0 && (
-        <div className="ml-[188px] space-y-1.5 pt-1.5">
+        <div className="ml-36 pl-3 space-y-1.5 pt-1.5">
           {docs.map((doc) => (
             <div key={doc.url} className="flex items-center justify-between gap-2">
               <a
                 href={doc.url}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 hover:text-brand-700 bg-brand-50 border border-brand-200/80 px-2.5 py-1 rounded-lg transition-colors truncate max-w-[200px]"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-xl transition-colors truncate max-w-[200px]"
                 title={doc.name}
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="shrink-0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M10 13h4M10 17h4"/></svg>
@@ -228,10 +231,12 @@ function ArrayDocRow({
 
 // ── Section header ─────────────────────────────────────────────────────────────
 
-function SectionHeader({ label }: { label: string }) {
+function SectionHeader({ label, icon }: { label: string; icon?: React.ReactNode }) {
   return (
-    <div className="px-5 pt-4 pb-1.5">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">{label}</p>
+    <div className="px-5 pt-5 pb-2 flex items-center gap-2">
+      {icon}
+      <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">{label}</p>
+      <div className="flex-1 h-px bg-zinc-100" />
     </div>
   );
 }
@@ -919,34 +924,87 @@ export default function LeadDrawer({
           {/* ── MAIN TAB ──────────────────────────────────────────────────── */}
           {activeTab === "main" && (
             <div className="pb-4">
-              <SectionHeader label="Contact" />
-              <FieldRow label="Contact name">
-                <input value={name} onChange={(e) => setName(e.target.value)} required className={inputCls} placeholder="..." />
+              <SectionHeader
+                label="Contact Information"
+                icon={
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-zinc-400">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                  </svg>
+                }
+              />
+              <FieldRow
+                label="Contact name"
+                icon={
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-400">
+                    <circle cx="12" cy="7" r="4"/><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                  </svg>
+                }
+              >
+                <input value={name} onChange={(e) => setName(e.target.value)} required className={inputCls} placeholder="Name" />
               </FieldRow>
-              <FieldRow label="Phone">
-                <input
-                  type="tel"
-                  maxLength={10}
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                  className={inputCls}
-                  placeholder="e.g. 9876543210"
-                />
+
+              <FieldRow
+                label="Phone"
+                icon={
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-400">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                  </svg>
+                }
+              >
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="tel"
+                    maxLength={10}
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    className={inputCls}
+                    placeholder="e.g. 9876543210"
+                  />
+                  {phone && (
+                    <a
+                      href={`https://wa.me/91${phone.replace(/\D/g, "")}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex-none p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors border border-emerald-200/80"
+                      title="Open WhatsApp chat"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/>
+                      </svg>
+                    </a>
+                  )}
+                </div>
               </FieldRow>
-              <FieldRow label="Email">
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} placeholder="..." />
+
+              <FieldRow
+                label="Email"
+                icon={
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-400">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+                  </svg>
+                }
+              >
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} placeholder="email@example.com" />
               </FieldRow>
-              <FieldRow label="Services">
-                <div className="flex flex-wrap gap-1.5 py-1">
+
+              {/* Dedicated Services Required Row */}
+              <div className="border-b border-zinc-100/90 px-5 py-2.5">
+                <div className="flex items-center gap-2 mb-2">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-400">
+                    <circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
+                  </svg>
+                  <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Travel Services Required</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
                   {SERVICES.map((svc) => {
                     const isSelected = selectedServices.includes(svc);
                     return (
                       <label
                         key={svc}
-                        className={`flex items-center gap-1 cursor-pointer rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors ${
+                        className={`flex items-center gap-2 cursor-pointer rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all ${
                           isSelected
-                            ? "bg-brand-50 border-brand-500 text-brand-700"
-                            : "bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100"
+                            ? "bg-emerald-50/70 border-emerald-500 text-emerald-800 shadow-2xs"
+                            : "bg-zinc-50/60 border-zinc-200 text-zinc-700 hover:bg-zinc-100/70"
                         }`}
                       >
                         <input
@@ -957,39 +1015,85 @@ export default function LeadDrawer({
                               prev.includes(svc) ? prev.filter((s) => s !== svc) : [...prev, svc]
                             );
                           }}
-                          className="h-3 w-3 rounded text-brand-600 focus:ring-brand-500"
+                          className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 border-zinc-300 cursor-pointer accent-blue-600"
                         />
-                        {svc}
+                        <span className="truncate">{svc}</span>
                       </label>
                     );
                   })}
                 </div>
-              </FieldRow>
-              <FieldRow label="City">
-                <input value={city} onChange={(e) => setCity(e.target.value)} className={inputCls} placeholder="..." />
-              </FieldRow>
-              <FieldRow label="State">
-                <input value={state} onChange={(e) => setState(e.target.value)} className={inputCls} placeholder="..." />
+              </div>
+
+              <FieldRow
+                label="City"
+                icon={
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-400">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+                  </svg>
+                }
+              >
+                <input value={city} onChange={(e) => setCity(e.target.value)} className={inputCls} placeholder="City name" />
               </FieldRow>
 
-              <SectionHeader label="Pipeline" />
-              <FieldRow label="Channel">
-                <span className="text-sm text-zinc-900 py-1 px-2 inline-block">{lead.channel}</span>
+              <FieldRow
+                label="State"
+                icon={
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-400">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                  </svg>
+                }
+              >
+                <input value={state} onChange={(e) => setState(e.target.value)} className={inputCls} placeholder="State name" />
               </FieldRow>
-              <FieldRow label="Revenue (₹)">
-                <div className="flex items-center">
-                  <span className="text-sm font-bold text-zinc-400 mr-1.5 select-none">₹</span>
+
+              <SectionHeader
+                label="Pipeline & Assignment"
+                icon={
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-400">
+                    <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+                  </svg>
+                }
+              />
+              <FieldRow
+                label="Channel"
+                icon={
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-400">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                  </svg>
+                }
+              >
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-100 px-2.5 py-1 text-xs font-bold text-zinc-800">
+                  {lead.channel}
+                </span>
+              </FieldRow>
+
+              <FieldRow
+                label="Revenue (₹)"
+                icon={
+                  <span className="text-xs font-bold text-zinc-400">₹</span>
+                }
+              >
+                <div className="relative flex items-center">
+                  <span className="absolute left-2.5 text-xs font-bold text-zinc-400 select-none">₹</span>
                   <input
                     type="number"
                     min="0"
                     value={value === 0 ? "" : value}
                     onChange={(e) => setValue(e.target.value === "" ? 0 : Number(e.target.value))}
-                    className={numInputCls}
+                    className={`${inputCls} pl-6 font-bold`}
                     placeholder="0"
                   />
                 </div>
               </FieldRow>
-              <FieldRow label="Assign User">
+
+              <FieldRow
+                label="Assign User"
+                icon={
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-400">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>
+                  </svg>
+                }
+              >
                 <select
                   value={assignAgentId}
                   onChange={(e) => setAssignAgentId(e.target.value)}
@@ -1009,11 +1113,19 @@ export default function LeadDrawer({
                   )}
                 </select>
               </FieldRow>
-              <FieldRow label="Stage">
+
+              <FieldRow
+                label="Stage"
+                icon={
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-400">
+                    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>
+                  </svg>
+                }
+              >
                 {isAtFinalStage ? (
-                  <span className="text-sm text-brand-600 font-medium inline-flex items-center gap-1">
+                  <span className="text-xs text-emerald-700 font-bold inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-lg">
                     {lead.stage}
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   </span>
                 ) : (
                   <select
@@ -1032,7 +1144,15 @@ export default function LeadDrawer({
                   </select>
                 )}
               </FieldRow>
-              <FieldRow label="Card colour">
+
+              <FieldRow
+                label="Card colour"
+                icon={
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-400">
+                    <circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>
+                  </svg>
+                }
+              >
                 <div className="flex items-center gap-1.5 py-1">
                   {LEAD_COLORS.map((c) => (
                     <button key={c.value} type="button" title={c.label} onClick={() => setColor(c.value)}
@@ -1041,7 +1161,15 @@ export default function LeadDrawer({
                   ))}
                 </div>
               </FieldRow>
-              <FieldRow label="Set Reminder">
+
+              <FieldRow
+                label="Set Reminder"
+                icon={
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-400">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                  </svg>
+                }
+              >
                 <button
                   type="button"
                   onClick={() => setShowReminderModal(true)}
@@ -1052,7 +1180,14 @@ export default function LeadDrawer({
                 </button>
               </FieldRow>
 
-              <SectionHeader label="Documents" />
+              <SectionHeader
+                label="Documents"
+                icon={
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-400">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                  </svg>
+                }
+              />
               <ArrayDocRow label="Upload Documents" docs={documents} uploading={uploadingDoc} inputRef={docInputRef} onUpload={handleUploadDoc} onDelete={handleDeleteDoc} />
 
               {(() => {
@@ -1101,7 +1236,14 @@ export default function LeadDrawer({
 
                 return (
                   <>
-                    <SectionHeader label="Customer Form Answers" />
+                    <SectionHeader
+                      label="Customer Form Answers"
+                      icon={
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-400">
+                          <polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                        </svg>
+                      }
+                    />
                     <div className="px-5 py-2">
                       <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3.5 text-xs text-zinc-800 font-sans leading-relaxed shadow-2xs space-y-1.5">
                         {cleanedLines.map((line, i) => (
@@ -1113,14 +1255,21 @@ export default function LeadDrawer({
                 );
               })()}
 
-              <SectionHeader label="Notes" />
+              <SectionHeader
+                label="Notes"
+                icon={
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-400">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                }
+              />
               <div className="px-5 py-2">
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={4}
                   placeholder="Add notes about this lead..."
-                  className="w-full resize-none text-sm text-zinc-900 bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2.5 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 placeholder:text-zinc-300 transition-colors"
+                  className="w-full resize-none text-xs font-medium text-zinc-900 bg-zinc-50/70 border border-zinc-200/80 rounded-xl px-3 py-2.5 outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 placeholder:text-zinc-400 transition-all"
                 />
               </div>
             </div>
@@ -1457,25 +1606,47 @@ export default function LeadDrawer({
         )}
 
         {/* ── Footer ─────────────────────────────────────────────────────────── */}
-        <div className="flex-none flex items-center justify-between gap-3 px-4 py-3 border-t border-zinc-100 bg-white">
-          <button type="button" onClick={onDelete}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" strokeLinecap="round"/></svg>
+        <div className="flex-none flex items-center justify-between gap-3 px-5 py-3.5 border-t border-zinc-200/80 bg-zinc-50/50 backdrop-blur-xs">
+          <button
+            type="button"
+            onClick={onDelete}
+            className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+            </svg>
             Delete
           </button>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             {error && (
-              <span className="text-xs font-semibold text-red-600 truncate max-w-[200px]" title={error}>
+              <span className="text-xs font-semibold text-red-600 truncate max-w-[180px]" title={error}>
                 {error}
               </span>
             )}
-            <button type="button" onClick={onClose}
-              className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50 transition-colors">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 px-4 py-2 text-xs font-bold text-zinc-700 shadow-2xs transition-colors"
+            >
               Cancel
             </button>
-            <button type="button" onClick={handleSubmit} disabled={loading}
-              className="rounded-lg bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60 transition-colors">
-              {loading ? "Saving..." : "Save changes"}
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={loading}
+              className="rounded-xl bg-emerald-600 hover:bg-emerald-700 px-5 py-2 text-xs font-bold text-white transition-all shadow-sm shadow-emerald-600/20 active:scale-[0.98] disabled:opacity-60 flex items-center gap-1.5"
+            >
+              {loading ? (
+                <>
+                  <svg className="animate-spin -ml-0.5 mr-1 h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Saving...
+                </>
+              ) : (
+                "Save changes"
+              )}
             </button>
           </div>
         </div>

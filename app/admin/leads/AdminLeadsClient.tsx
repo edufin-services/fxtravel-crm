@@ -44,10 +44,6 @@ const TRAVEL_SERVICES = [
   "Domestic Tours",
   "International Tours",
   "Flights/Hotels",
-  "Air Tickets",
-  "Visa Assistance",
-  "Hotels",
-  "Travel Insurance",
   "Others",
 ];
 
@@ -272,6 +268,7 @@ export default function AdminLeadsClient({
   }
 
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
+  const [modalStage, setModalStage] = useState<Stage | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<Stage | null>(null);
   const [reminderLead, setReminderLead] = useState<Lead | null>(null);
@@ -576,6 +573,30 @@ export default function AdminLeadsClient({
     setEditingLead((prev) => (prev?.id === id ? { ...prev, ...patch } : prev));
   }
 
+  async function handleAddDeal(deal: {
+    ownerId: string;
+    name: string;
+    channel: Channel;
+    stage: Stage;
+    phone: string;
+    services?: string[];
+    notes?: string;
+    city?: string;
+    state?: string;
+  }) {
+    const res = await fetch("/api/admin/leads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(deal),
+    });
+    const data = await res.json();
+    if (res.ok && data.lead) {
+      setLeads((prev) => [data.lead, ...prev]);
+      setModalStage(null);
+    }
+    return data;
+  }
+
   return (
     <div className="space-y-4 w-full">
       {/* Header matching Image 1 */}
@@ -591,8 +612,8 @@ export default function AdminLeadsClient({
         <div className="flex items-center gap-2.5">
           {/* Add New Lead Button matching Image 1 */}
           <button
-            onClick={() => setEditingLead(null)}
-            className="flex items-center gap-1.5 rounded-xl bg-[#059669] hover:bg-[#047857] px-3.5 py-2 text-xs font-bold text-white shadow-xs transition-all active:scale-95"
+            onClick={() => setModalStage(STAGES[0])}
+            className="flex items-center gap-1.5 rounded-xl bg-[#059669] hover:bg-[#047857] px-3.5 py-2 text-xs font-bold text-white shadow-xs transition-all active:scale-95 cursor-pointer"
           >
             <span className="text-sm font-bold leading-none">+</span>
             <span>Add New Lead</span>
@@ -1155,8 +1176,8 @@ export default function AdminLeadsClient({
 
                 {/* Add Lead button matching Forex CRM */}
                 <button
-                  onClick={() => setEditingLead(null)}
-                  className="mt-2.5 flex-none flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-zinc-300 bg-white/70 py-2 text-xs font-semibold text-zinc-500 hover:text-zinc-800 hover:bg-white hover:border-zinc-400 shadow-2xs transition-all"
+                  onClick={() => setModalStage(stage)}
+                  className="mt-2.5 flex-none flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-zinc-300 bg-white/70 py-2 text-xs font-semibold text-zinc-500 hover:text-zinc-800 hover:bg-white hover:border-zinc-400 shadow-2xs transition-all cursor-pointer"
                 >
                   <span className="text-sm font-bold leading-none">+</span>
                   <span>Add Lead</span>
@@ -1455,6 +1476,16 @@ export default function AdminLeadsClient({
           onVisaDocumentsChange={(docs) => patchLead(editingLead.id, { visaDocuments: docs })}
         />
       )}
+
+      {/* ── Add Deal / Lead Modal (Admin) ──────────────────────────────────── */}
+      {modalStage && (
+        <AdminAddLeadModal
+          stage={modalStage}
+          agents={agents}
+          onClose={() => setModalStage(null)}
+          onSubmit={handleAddDeal}
+        />
+      )}
     </div>
   );
 }
@@ -1555,6 +1586,199 @@ function ConfirmStageModal({
             {loading ? "Moving…" : isConfirmed ? "Confirm Deal" : "Confirm"}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Admin Add Lead Modal ───────────────────────────────────────────────────────
+function AdminAddLeadModal({
+  stage,
+  agents,
+  onClose,
+  onSubmit,
+}: {
+  stage: Stage;
+  agents: Agent[];
+  onClose: () => void;
+  onSubmit: (deal: {
+    ownerId: string;
+    name: string;
+    channel: Channel;
+    stage: Stage;
+    phone: string;
+    services?: string[];
+    notes?: string;
+  }) => Promise<{ error?: string; lead?: any }>;
+}) {
+  useBodyScrollLock();
+  const [name, setName] = useState("");
+  const [ownerId, setOwnerId] = useState(agents[0]?.id || "");
+  const [channel, setChannel] = useState<Channel>(CHANNELS[0]);
+  const [phone, setPhone] = useState("");
+  const [stageVal, setStageVal] = useState<Stage>(stage);
+  const [selectedServices, setSelectedServices] = useState<string[]>(["Domestic Tours"]);
+  const [notes, setNotes] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const toggleService = (svc: string) => {
+    setSelectedServices((prev) =>
+      prev.includes(svc) ? prev.filter((s) => s !== svc) : [...prev, svc]
+    );
+  };
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    const cleanPhone = phone.replace(/\D/g, "");
+    if (cleanPhone.length !== 10) {
+      setError("Phone number must be exactly 10 digits.");
+      return;
+    }
+    if (!ownerId) {
+      setError("Please select an agent to assign this lead to.");
+      return;
+    }
+    setLoading(true);
+    const result = await onSubmit({
+      ownerId,
+      name: name.trim(),
+      channel,
+      stage: stageVal,
+      phone: cleanPhone,
+      services: selectedServices,
+      notes: notes.trim(),
+    });
+    setLoading(false);
+    if (result?.error) setError(result.error);
+  }
+
+  const inputCls = "mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50/80 px-3.5 py-2 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-100 transition-all";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl ring-1 ring-zinc-200/80 flex flex-col overflow-hidden animate-fadeIn" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 shrink-0">
+          <div>
+            <h2 className="text-base font-bold text-zinc-900">New Lead</h2>
+            <p className="text-xs text-zinc-400 mt-0.5">Create and assign a lead to your team</p>
+          </div>
+          <button onClick={onClose} className="rounded-xl p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M6 18L18 6" strokeLinecap="round"/></svg>
+          </button>
+        </div>
+
+        {error && <div className="mx-6 mt-3 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2 text-xs text-red-700 shrink-0">{error}</div>}
+
+        <form onSubmit={handleSubmit} className="px-6 py-4 space-y-3 flex-1">
+          {/* Row 1: Name and Phone */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide">Lead Name</label>
+              <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Rahul Sharma" className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide">Phone Number</label>
+              <input
+                type="tel"
+                required
+                maxLength={10}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                placeholder="10-digit mobile"
+                className={inputCls}
+              />
+            </div>
+          </div>
+
+          {/* Row 2: Assign to Agent */}
+          <div>
+            <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide">Assign To Agent</label>
+            <select value={ownerId} onChange={(e) => setOwnerId(e.target.value)} className={inputCls} required>
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name} ({a.email})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Row 3: Channel and Stage */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide">Source Channel</label>
+              <select value={channel} onChange={(e) => setChannel(e.target.value as Channel)} className={inputCls}>
+                {CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide">Stage</label>
+              <select value={stageVal} onChange={(e) => setStageVal(e.target.value as Stage)} className={inputCls}>
+                {STAGES.map((s) => <option key={s} value={s}>{STAGE_LABELS[s] || s}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Row 4: Travel Services */}
+          <div>
+            <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">Travel Services Required</label>
+            <div className="flex flex-wrap gap-2">
+              {["Domestic Tours", "International Tours", "Flights/Hotels", "Others"].map((svc) => {
+                const isSelected = selectedServices.includes(svc);
+                return (
+                  <label
+                    key={svc}
+                    className={`flex items-center gap-2 cursor-pointer rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all ${
+                      isSelected
+                        ? "bg-emerald-50/70 border-emerald-500 text-emerald-800 shadow-2xs"
+                        : "bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleService(svc)}
+                      className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 border-zinc-300 cursor-pointer accent-blue-600"
+                    />
+                    <span>{svc}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Row 5: Initial Note */}
+          <div>
+            <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wide">Initial Note (Optional)</label>
+            <textarea
+              rows={2}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Requirements, customer query, budget, etc..."
+              className={`${inputCls} resize-none`}
+            />
+          </div>
+
+          {/* Submit buttons */}
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-zinc-100 shrink-0">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 px-4 py-2 text-xs font-semibold text-zinc-600 transition-colors shadow-2xs"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="rounded-xl bg-emerald-600 hover:bg-emerald-700 px-5 py-2 text-xs font-bold text-white disabled:opacity-60 transition-colors shadow-sm shadow-emerald-600/20 active:scale-[0.98]"
+            >
+              {loading ? "Creating…" : "Create Lead"}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

@@ -23,21 +23,31 @@ export default function NavLink({
     <Link
       href={href}
       title={collapsed ? labelText : undefined}
-      className={`group relative flex items-center rounded-xl text-xs font-semibold transition-all duration-150 ${
-        collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3.5 py-2.5"
+      className={`group relative flex items-center rounded-xl text-[12px] font-medium transition-all duration-150 ${
+        collapsed ? "justify-center px-1.5 py-1.5" : "gap-2 px-2.5 py-1.5"
       } ${
         isActive
-          ? "bg-emerald-50 text-emerald-800 border border-emerald-200/80 shadow-xs"
-          : "text-zinc-600 hover:bg-zinc-100/80 hover:text-zinc-900"
+          ? "bg-[#ecfdf5] text-[#065f46] font-bold border border-[#a7f3d0]/60 shadow-2xs"
+          : "text-zinc-600 hover:bg-zinc-100/70 hover:text-zinc-900"
       }`}
     >
-      <span className={`flex-none transition-colors duration-150 ${isActive ? "text-emerald-600" : "text-zinc-400 group-hover:text-zinc-700"}`}>
+      {/* Signature left pill indicator matching reference CRM */}
+      {isActive && (
+        <span
+          className={`absolute ${
+            collapsed ? "left-0.5" : "left-0"
+          } top-1/2 -translate-y-1/2 w-1 h-4.5 rounded-r-full bg-[#059669]`}
+        />
+      )}
+      <span
+        className={`flex items-center justify-center shrink-0 transition-colors duration-150 [&>svg]:w-3.5 [&>svg]:h-3.5 [&>svg]:stroke-[1.8] ${
+          isActive ? "text-[#059669]" : "text-zinc-400 group-hover:text-zinc-600"
+        }`}
+      >
         {icon}
       </span>
-      {!collapsed && <span className="truncate flex-1">{children}</span>}
-      {isActive && (
-        <span className={`absolute ${collapsed ? "left-1 top-2 bottom-2 w-1" : "left-0 top-2 bottom-2 w-1"} rounded-r-full bg-emerald-600`} />
-      )}
+      {!collapsed && <span className="truncate flex-1 tracking-tight">{children}</span>}
     </Link>
   );
 }
+

@@ -55,7 +55,7 @@ export default function AdminSearch() {
 
   return (
     <div className="relative flex-1 max-w-md" ref={ref}>
-      <div className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-zinc-400 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-100 transition-all shadow-xs">
+      <div className="flex items-center gap-2 rounded-full border border-zinc-200/80 bg-zinc-50/70 px-3.5 py-1.5 text-zinc-400 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-100 transition-all shadow-2xs">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="flex-none">
           <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35" strokeLinecap="round"/>
         </svg>

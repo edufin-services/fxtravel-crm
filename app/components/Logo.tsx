@@ -6,10 +6,12 @@ export default function Logo({
   className = "",
   dark = false,
   compact = false,
+  imgClassName = "h-9 max-w-[135px] w-auto object-contain",
 }: {
   className?: string;
   dark?: boolean;
   compact?: boolean;
+  imgClassName?: string;
 }) {
   if (compact) {
     return (
@@ -17,9 +19,9 @@ export default function Logo({
         <Image
           src="/fx-icon1.png"
           alt="Fxpertise"
-          width={36}
-          height={36}
-          className="h-9 w-9 object-contain rounded-xl shadow-xs"
+          width={32}
+          height={32}
+          className="h-8 w-8 object-contain rounded-xl shadow-xs"
           priority
         />
       </Link>
@@ -30,10 +32,10 @@ export default function Logo({
     <Link href="/" className={`flex items-center gap-2 font-semibold ${className}`}>
       <Image
         src="/logo.png"
-        alt="Fxpertise"
-        width={180}
-        height={50}
-        className="h-11 max-w-[140px] w-auto object-contain"
+        alt="Fxpertise Travel & Forex"
+        width={160}
+        height={70}
+        className={imgClassName}
         priority
       />
     </Link>

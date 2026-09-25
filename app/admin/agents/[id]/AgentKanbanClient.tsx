@@ -874,15 +874,15 @@ export default function AgentKanbanClient({ agent, initialLeads }: { agent: Agen
                             return (
                               <button
                                 onClick={() => setViewingNoteLead(deal)}
-                                className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
+                                className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-bold transition-all border shadow-2xs ${
                                   noteStatus.hasAnyNote
-                                    ? "bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 shadow-2xs"
-                                    : "bg-zinc-50 text-zinc-400 border border-zinc-200/60 hover:text-zinc-700 hover:bg-zinc-100"
+                                    ? "bg-[#fef9c3] text-[#78350f] border-[#fde047] hover:bg-[#fef08a]"
+                                    : "bg-white text-zinc-500 border-zinc-200/90 hover:bg-zinc-50 hover:text-zinc-700"
                                 }`}
                                 title={noteStatus.hasAnyNote ? "View Note" : "Add note"}
                               >
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5"/><path d="M17.5 2.5a2.121 2.121 0 0 1 3 3L12 14l-4 1 1-4 7.5-7.5z"/></svg>
-                                {noteStatus.tableLabel}
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5"/><path d="M17.5 2.5a2.121 2.121 0 0 1 3 3L12 14l-4 1 1-4 7.5-7.5z"/></svg>
+                                <span>Note</span>
                               </button>
                             );
                           })()}

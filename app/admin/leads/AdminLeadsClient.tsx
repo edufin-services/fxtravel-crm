@@ -26,44 +26,114 @@ const STAGE_COLORS: Record<string, string> = {
   Closed: "bg-red-50 text-red-700",
 };
 
+const STAGE_LABELS: Record<Stage, string> = {
+  Initial: "INITIAL",
+  Connected: "CONNECTED",
+  Confirmed: "COMPLETED (WON)",
+  Closed: "CLOSED (LOST)",
+};
+
 const stageMeta: Record<string, { dot: string; border: string; badge: string; text: string }> = {
   Initial:   { dot: "bg-blue-500",   border: "border-t-blue-400",   badge: "bg-blue-600 text-white",    text: "text-blue-600" },
   Connected: { dot: "bg-amber-500",  border: "border-t-amber-400",  badge: "bg-amber-600 text-white",   text: "text-amber-600" },
   Confirmed: { dot: "bg-emerald-500",border: "border-t-emerald-400",badge: "bg-emerald-600 text-white", text: "text-emerald-600" },
-  Closed:    { dot: "bg-red-500",    border: "border-t-red-400",    badge: "bg-red-600 text-white",     text: "text-red-600" },
+  Closed:    { dot: "bg-red-500",    border: "border-t-red-400",    badge: "bg-zinc-400 text-white",    text: "text-zinc-500" },
 };
+
+const TRAVEL_SERVICES = [
+  "Domestic Tours",
+  "International Tours",
+  "Flights/Hotels",
+  "Air Tickets",
+  "Visa Assistance",
+  "Hotels",
+  "Travel Insurance",
+  "Others",
+];
 
 const LEAD_COLORS = [
   { value: "",        bg: "bg-white",          border: "border-zinc-200/90",   accent: "" },
-  { value: "sky",     bg: "bg-sky-100/90",     border: "border-sky-400/80",    accent: "border-l-4 border-l-sky-600" },
-  { value: "emerald", bg: "bg-emerald-100/90", border: "border-emerald-400/80",accent: "border-l-4 border-l-emerald-600" },
-  { value: "amber",   bg: "bg-amber-100/90",   border: "border-amber-400/80",  accent: "border-l-4 border-l-amber-600" },
-  { value: "violet",  bg: "bg-violet-100/90",  border: "border-violet-400/80", accent: "border-l-4 border-l-violet-600" },
-  { value: "rose",    bg: "bg-rose-100/90",    border: "border-rose-400/80",   accent: "border-l-4 border-l-rose-600" },
-  { value: "orange",  bg: "bg-orange-100/90",  border: "border-orange-400/80", accent: "border-l-4 border-l-orange-600" },
+  { value: "sky",     bg: "bg-[#0284c7]",      border: "border-[#0369a1]",    accent: "" },
+  { value: "emerald", bg: "bg-[#059669]",      border: "border-[#047857]",    accent: "" },
+  { value: "amber",   bg: "bg-[#d97706]",      border: "border-[#b45309]",    accent: "" },
+  { value: "violet",  bg: "bg-[#7c3aed]",      border: "border-[#6d28d9]",    accent: "" },
+  { value: "rose",    bg: "bg-[#e11d48]",      border: "border-[#be123c]",    accent: "" },
+  { value: "orange",  bg: "bg-[#ea580c]",      border: "border-[#c2410c]",    accent: "" },
 ];
+
+function isColoredCard(color?: string): boolean {
+  return Boolean(color && color !== "");
+}
 
 function cardBg(color?: string) {
   const c = LEAD_COLORS.find((x) => x.value === (color ?? "")) ?? LEAD_COLORS[0];
-  return `${c.bg} ${c.border} ${c.accent}`;
+  if (c.value === "") {
+    return "bg-white border-zinc-200/90 text-zinc-900 shadow-2xs hover:shadow-md";
+  }
+  return `${c.bg} ${c.border} text-white shadow-md shadow-zinc-900/10`;
 }
 
 function tableRowBg(color?: string) {
   switch (color) {
     case "sky":
-      return "bg-sky-50/70 hover:bg-sky-100/80 border-l-4 border-l-sky-500";
+      return "bg-[#0284c7] text-white hover:bg-[#0369a1]";
     case "emerald":
-      return "bg-emerald-50/70 hover:bg-emerald-100/80 border-l-4 border-l-emerald-500";
+      return "bg-[#059669] text-white hover:bg-[#047857]";
     case "amber":
-      return "bg-amber-50/70 hover:bg-amber-100/80 border-l-4 border-l-amber-500";
+      return "bg-[#d97706] text-white hover:bg-[#b45309]";
     case "violet":
-      return "bg-violet-50/70 hover:bg-violet-100/80 border-l-4 border-l-violet-500";
+      return "bg-[#7c3aed] text-white hover:bg-[#6d28d9]";
     case "rose":
-      return "bg-rose-50/70 hover:bg-rose-100/80 border-l-4 border-l-rose-500";
+      return "bg-[#e11d48] text-white hover:bg-[#be123c]";
     case "orange":
-      return "bg-orange-50/70 hover:bg-orange-100/80 border-l-4 border-l-orange-500";
+      return "bg-[#ea580c] text-white hover:bg-[#c2410c]";
     default:
-      return "bg-white hover:bg-zinc-50/80 border-l-4 border-l-transparent";
+      return "bg-white hover:bg-zinc-50/90 text-zinc-900 border-l-4 border-l-transparent";
+  }
+}
+
+function ChannelIcon({ channel, className = "h-3.5 w-3.5" }: { channel: Channel; className?: string }) {
+  switch (channel) {
+    case "WhatsApp":
+      return (
+        <svg className={`${className} text-emerald-600`} viewBox="0 0 24 24" fill="currentColor">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.885-9.885 9.885m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+        </svg>
+      );
+    case "Instagram":
+      return (
+        <svg className={`${className} text-pink-600`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+          <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+          <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+          <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+        </svg>
+      );
+    case "Facebook":
+      return (
+        <svg className={`${className} text-blue-600`} viewBox="0 0 24 24" fill="currentColor">
+          <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
+        </svg>
+      );
+    case "Ads":
+      return (
+        <svg className={`${className} text-purple-600`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+        </svg>
+      );
+    case "Email":
+      return (
+        <svg className={`${className} text-sky-600`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+          <polyline points="22,6 12,13 2,6"/>
+        </svg>
+      );
+    default:
+      return (
+        <svg className={`${className} text-amber-600`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+        </svg>
+      );
   }
 }
 
@@ -218,8 +288,47 @@ export default function AdminLeadsClient({
   const [datePreset, setDatePreset] = useState<string>("All Dates");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+  const [showFilterPopover, setShowFilterPopover] = useState(false);
 
-  const agentMap = useMemo(() => Object.fromEntries(agents.map((a) => [a.id, a.name])), [agents]);
+  const agentMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    agents.forEach((a) => {
+      map[a.id] = a.name;
+    });
+    return map;
+  }, [agents]);
+
+  const availableServices = useMemo(() => {
+    const set = new Set<string>(TRAVEL_SERVICES);
+    leads.forEach((l) => {
+      if (Array.isArray(l.services)) l.services.forEach((s) => s && set.add(s));
+      if (l.serviceType) set.add(l.serviceType);
+    });
+    return Array.from(set);
+  }, [leads]);
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (datePreset !== "All Dates") count++;
+    if (userFilter !== "All Users") count++;
+    if (stageFilter !== "All Stages") count++;
+    if (channelFilter !== "All") count++;
+    if (serviceFilter !== "All Services") count++;
+    if (locationFilter !== "All Locations") count++;
+    return count;
+  }, [datePreset, userFilter, stageFilter, channelFilter, serviceFilter, locationFilter]);
+
+  function handleResetFilters() {
+    setDatePreset("All Dates");
+    setStartDate("");
+    setEndDate("");
+    setUserFilter("All Users");
+    setStageFilter("All Stages");
+    setChannelFilter("All");
+    setServiceFilter("All Services");
+    setLocationFilter("All Locations");
+    setQuery("");
+  }
 
   const availableLocations = useMemo(() => {
     const locSet = new Set<string>();
@@ -468,266 +577,405 @@ export default function AdminLeadsClient({
   }
 
   return (
-    <div className="space-y-5 w-full">
-      {/* Header */}
+    <div className="space-y-4 w-full">
+      {/* Header matching Image 1 */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-black text-zinc-900 tracking-tight">All Leads</h1>
-          <p className="mt-0.5 text-sm text-zinc-400">
+          <p className="mt-0.5 text-xs text-zinc-500 font-medium">
             {isFiltered ? `${filteredLeads.length} of ${leads.length} leads` : `${leads.length} leads`}
-            {locationFilter !== "All Locations" ? ` · ${locationFilter}` : " across all users"} &middot; Pipeline: {fmt(isFiltered ? filteredTotalValue : totalValue)}
+            {locationFilter !== "All Locations" ? ` · ${locationFilter}` : " across all branches"} &middot; Pipeline: {fmt(isFiltered ? filteredTotalValue : totalValue)}
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* View mode toggle: Icon-only buttons */}
-          <div className="flex items-center rounded-xl border border-zinc-200 bg-zinc-100 p-1">
+        <div className="flex items-center gap-2.5">
+          {/* Add New Lead Button matching Image 1 */}
+          <button
+            onClick={() => setEditingLead(null)}
+            className="flex items-center gap-1.5 rounded-xl bg-[#059669] hover:bg-[#047857] px-3.5 py-2 text-xs font-bold text-white shadow-xs transition-all active:scale-95"
+          >
+            <span className="text-sm font-bold leading-none">+</span>
+            <span>Add New Lead</span>
+          </button>
+
+          {/* View mode toggle: [ || ] (Kanban) and [ = ] (List) */}
+          <div className="flex items-center rounded-xl border border-zinc-200 bg-zinc-100 p-0.5 shadow-2xs">
             <button
               onClick={() => handleSetViewMode("kanban")}
-              className={`flex items-center justify-center rounded-lg p-2 transition-colors ${
-                viewMode === "kanban" ? "bg-white text-zinc-900 shadow-xs" : "text-zinc-500 hover:text-zinc-800"
+              className={`flex items-center justify-center rounded-lg p-1.5 transition-all ${
+                viewMode === "kanban" ? "bg-white text-zinc-900 shadow-xs ring-1 ring-black/5" : "text-zinc-500 hover:text-zinc-800"
               }`}
               title="Kanban View"
+              aria-label="Kanban View"
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>
             </button>
             <button
               onClick={() => handleSetViewMode("table")}
-              className={`flex items-center justify-center rounded-lg p-2 transition-colors ${
-                viewMode === "table" ? "bg-white text-zinc-900 shadow-xs" : "text-zinc-500 hover:text-zinc-800"
+              className={`flex items-center justify-center rounded-lg p-1.5 transition-all ${
+                viewMode === "table" ? "bg-white text-zinc-900 shadow-xs ring-1 ring-black/5" : "text-zinc-500 hover:text-zinc-800"
               }`}
               title="List View"
+              aria-label="List View"
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
             </button>
           </div>
         </div>
       </div>
 
-      {/* ── Filters Bar ──────────────────────────────────────────────────────── */}
+      {/* ── Search + Filters Row matching Image 1 ────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Search Input */}
-          <div className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-zinc-400 shadow-2xs w-64 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-100 transition-all">
-            <SearchIcon />
-            <input
-              type="text"
-              placeholder="Search leads by name, phone, etc..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="w-full bg-transparent text-xs font-semibold text-zinc-700 placeholder:text-zinc-400 focus:outline-none"
-            />
-            {query && (
-              <button onClick={() => setQuery("")} className="text-zinc-400 hover:text-zinc-600 transition-colors" title="Clear search">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
-              </button>
-            )}
-          </div>
-
-          {/* User / Agent Filter */}
-          <div className="relative">
-            <select
-              value={userFilter}
-              onChange={(e) => setUserFilter(e.target.value)}
-              className="appearance-none rounded-xl border border-zinc-200 bg-white pl-3.5 pr-8 py-2 text-xs font-bold text-zinc-700 shadow-2xs hover:border-zinc-300 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 transition-all cursor-pointer"
-            >
-              <option value="All Users">All Users</option>
-              {agents.map((a) => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
-            </select>
-            <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            </div>
-          </div>
-
-          {/* Stage Filter */}
-          <div className="relative">
-            <select
-              value={stageFilter}
-              onChange={(e) => setStageFilter(e.target.value)}
-              className="appearance-none rounded-xl border border-zinc-200 bg-white pl-3.5 pr-8 py-2 text-xs font-bold text-zinc-700 shadow-2xs hover:border-zinc-300 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 transition-all cursor-pointer"
-            >
-              <option value="All Stages">All Stages</option>
-              {STAGES.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-            <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            </div>
-          </div>
-
-          {/* Service Filter */}
-          <div className="relative">
-            <select
-              value={serviceFilter}
-              onChange={(e) => setServiceFilter(e.target.value)}
-              className="appearance-none rounded-xl border border-zinc-200 bg-white pl-3.5 pr-8 py-2 text-xs font-bold text-zinc-700 shadow-2xs hover:border-zinc-300 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 transition-all cursor-pointer"
-            >
-              <option value="All Services">All Services</option>
-              {SERVICES.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-            <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            </div>
-          </div>
-
-          {/* Location Filter */}
-          <div className="relative">
-            <select
-              value={locationFilter}
-              onChange={(e) => setLocationFilter(e.target.value)}
-              className="appearance-none rounded-xl border border-zinc-200 bg-white pl-3.5 pr-8 py-2 text-xs font-bold text-zinc-700 shadow-2xs hover:border-zinc-300 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 transition-all cursor-pointer"
-            >
-              <option value="All Locations">All Locations</option>
-              {availableLocations.map((loc) => {
-                const count = locationCounts[loc] || 0;
-                return (
-                  <option key={loc} value={loc}>
-                    {loc} {count > 0 ? `(${count})` : ""}
-                  </option>
-                );
-              })}
-              {locationCounts.unspecified > 0 && (
-                <option value="Unspecified / No Location">
-                  Unspecified ({locationCounts.unspecified})
-                </option>
-              )}
-            </select>
-            <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            </div>
-          </div>
-
-          {/* Reset Filters button if any filter is active */}
-          {isFiltered && (
-            <button
-              onClick={() => {
-                setQuery("");
-                setUserFilter("All Users");
-                setStageFilter("All Stages");
-                setServiceFilter("All Services");
-                setLocationFilter("All Locations");
-                setChannelFilter("All");
-                setDatePreset("All Dates");
-                setStartDate("");
-                setEndDate("");
-              }}
-              className="flex items-center gap-1 rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-bold text-zinc-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50/50 shadow-2xs transition-all cursor-pointer"
-              title="Reset all filters"
-            >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
-              Reset
+        {/* Search Input */}
+        <div className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3.5 py-1.5 text-zinc-400 shadow-2xs w-72 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-100 transition-all">
+          <SearchIcon />
+          <input
+            type="text"
+            placeholder="Search leads by name, phone, etc..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-full bg-transparent text-xs font-semibold text-zinc-700 placeholder:text-zinc-400 focus:outline-none"
+          />
+          {query && (
+            <button onClick={() => setQuery("")} className="text-zinc-400 hover:text-zinc-600 transition-colors" title="Clear search">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
           )}
+        </div>
 
-          {/* Date Filter */}
-          <div className="flex items-center gap-1.5">
-            <div className="relative">
-              <select
-                value={datePreset}
-                onChange={(e) => setDatePreset(e.target.value)}
-                className="appearance-none rounded-xl border border-zinc-200 bg-white pl-3.5 pr-8 py-2 text-xs font-bold text-zinc-700 shadow-2xs hover:border-zinc-300 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 transition-all cursor-pointer"
-              >
-                <option value="All Dates">All Time</option>
-                <option value="Today">Today</option>
-                <option value="Last 7 Days">Last 7 Days</option>
-                <option value="Last 30 Days">Last 30 Days</option>
-                <option value="Custom Range">Custom Range</option>
-              </select>
-              <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </div>
-            </div>
-
-            {datePreset === "Custom Range" && (
-              <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-zinc-200 shadow-2xs animate-fadeIn">
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="rounded-lg border border-zinc-200 px-2 py-1 text-xs font-semibold text-zinc-700 focus:outline-none focus:border-emerald-500"
-                />
-                <span className="text-xs text-zinc-400 font-bold">to</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="rounded-lg border border-zinc-200 px-2 py-1 text-xs font-semibold text-zinc-700 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
+        {/* Filters Button with Dropdown Popover */}
+        <div className="relative">
+          <button
+            onClick={() => setShowFilterPopover((p) => !p)}
+            className={`flex items-center gap-1.5 rounded-xl border px-3.5 py-1.5 text-xs font-semibold transition-all shadow-2xs ${
+              activeFilterCount > 0 || showFilterPopover
+                ? "border-emerald-500 bg-emerald-50/60 text-emerald-800 ring-2 ring-emerald-100"
+                : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50"
+            }`}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span>Filters</span>
+            {activeFilterCount > 0 && (
+              <span className="flex h-4.5 w-4.5 items-center justify-center rounded-full bg-emerald-600 text-[9px] font-black text-white">
+                {activeFilterCount}
+              </span>
             )}
-          </div>
-
-          {/* Channel Filters */}
-          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-zinc-200 shadow-2xs">
-            <button
-              onClick={() => setChannelFilter("All")}
-              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                channelFilter === "All" ? "bg-zinc-900 text-white shadow-2xs" : "text-zinc-500 hover:text-zinc-800"
-              }`}
+            <svg
+              width="11"
+              height="11"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              className={`transition-transform duration-200 ${showFilterPopover ? "rotate-180" : ""}`}
             >
-              All
-            </button>
-            {CHANNELS.map((c) => (
-              <button
-                key={c}
-                onClick={() => setChannelFilter(channelFilter === c ? "All" : c)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                  channelFilter === c ? "bg-zinc-900 text-white shadow-2xs" : "text-zinc-500 hover:text-zinc-800"
-                }`}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
+              <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+
+          {/* Floating Filter Popover */}
+          {showFilterPopover && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setShowFilterPopover(false)} />
+              <div className="absolute right-0 top-full mt-1.5 w-[380px] max-w-[95vw] z-40 rounded-2xl bg-white p-4 shadow-2xl border border-zinc-200/90 max-h-[calc(100vh-130px)] overflow-y-auto animate-fadeIn">
+                {/* Popover Header */}
+                <div className="flex items-center justify-between pb-2.5 border-b border-zinc-100">
+                  <div className="flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-zinc-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    <h3 className="text-xs font-black text-zinc-900">Filter Leads</h3>
+                  </div>
+                  <button
+                    onClick={() => setShowFilterPopover(false)}
+                    className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors"
+                    title="Close"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round"/>
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Date Range Section */}
+                <div className="pt-2.5">
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-zinc-400 mb-1.5">
+                    Date Range
+                  </label>
+                  <div className="flex items-center gap-1 p-0.5 bg-zinc-100/90 rounded-xl">
+                    {(["All Time", "Today", "7 Days", "30 Days", "Custom"] as const).map((preset) => {
+                      const isActive =
+                        (preset === "All Time" && (datePreset === "All Time" || datePreset === "All Dates")) ||
+                        (preset === "Today" && datePreset === "Today") ||
+                        (preset === "7 Days" && (datePreset === "7 Days" || datePreset === "Last 7 Days")) ||
+                        (preset === "30 Days" && (datePreset === "30 Days" || datePreset === "Last 30 Days")) ||
+                        (preset === "Custom" && (datePreset === "Custom" || datePreset === "Custom Range"));
+
+                      return (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => {
+                            if (preset === "All Time") setDatePreset("All Dates");
+                            else if (preset === "7 Days") setDatePreset("Last 7 Days");
+                            else if (preset === "30 Days") setDatePreset("Last 30 Days");
+                            else if (preset === "Custom") setDatePreset("Custom Range");
+                            else setDatePreset(preset);
+                          }}
+                          className={`flex-1 py-1 text-[11px] font-bold rounded-lg transition-all text-center ${
+                            isActive
+                              ? "bg-zinc-900 text-white shadow-2xs"
+                              : "text-zinc-600 hover:text-zinc-900 hover:bg-white/50"
+                          }`}
+                        >
+                          {preset}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {(datePreset === "Custom" || datePreset === "Custom Range") && (
+                    <div className="mt-2 flex items-center gap-1.5 p-1.5 rounded-xl bg-zinc-50 border border-zinc-200">
+                      <div className="flex-1">
+                        <span className="block text-[9px] font-bold text-zinc-400 uppercase">From</span>
+                        <input
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
+                          className="w-full text-[11px] font-semibold bg-transparent text-zinc-800 focus:outline-none"
+                        />
+                      </div>
+                      <span className="text-zinc-300 font-bold text-xs">→</span>
+                      <div className="flex-1">
+                        <span className="block text-[9px] font-bold text-zinc-400 uppercase">To</span>
+                        <input
+                          type="date"
+                          value={endDate}
+                          onChange={(e) => setEndDate(e.target.value)}
+                          className="w-full text-[11px] font-semibold bg-transparent text-zinc-800 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Filter Grid */}
+                <div className="mt-2.5 grid grid-cols-2 gap-2">
+                  {/* Stage */}
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-zinc-400 mb-1">
+                      Stage
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={stageFilter}
+                        onChange={(e) => setStageFilter(e.target.value)}
+                        className="w-full appearance-none rounded-xl border border-zinc-200 bg-zinc-50/80 pl-2.5 pr-7 py-1.5 text-xs font-bold text-zinc-800 hover:border-zinc-300 focus:border-emerald-500 focus:bg-white focus:outline-none transition-all cursor-pointer"
+                      >
+                        <option value="All Stages">All Stages</option>
+                        {STAGES.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Source Channel */}
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-zinc-400 mb-1">
+                      Source Channel
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={channelFilter}
+                        onChange={(e) => setChannelFilter(e.target.value as any)}
+                        className="w-full appearance-none rounded-xl border border-zinc-200 bg-zinc-50/80 pl-2.5 pr-7 py-1.5 text-xs font-bold text-zinc-800 hover:border-zinc-300 focus:border-emerald-500 focus:bg-white focus:outline-none transition-all cursor-pointer"
+                      >
+                        <option value="All">All Channels</option>
+                        {CHANNELS.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Travel Service */}
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-zinc-400 mb-1">
+                      Service
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={serviceFilter}
+                        onChange={(e) => setServiceFilter(e.target.value)}
+                        className="w-full appearance-none rounded-xl border border-zinc-200 bg-zinc-50/80 pl-2.5 pr-7 py-1.5 text-xs font-bold text-zinc-800 hover:border-zinc-300 focus:border-emerald-500 focus:bg-white focus:outline-none transition-all cursor-pointer"
+                      >
+                        <option value="All Services">All Services</option>
+                        {availableServices.map((svc) => (
+                          <option key={svc} value={svc}>{svc}</option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Location */}
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-zinc-400 mb-1">
+                      Location
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={locationFilter}
+                        onChange={(e) => setLocationFilter(e.target.value)}
+                        className="w-full appearance-none rounded-xl border border-zinc-200 bg-zinc-50/80 pl-2.5 pr-7 py-1.5 text-xs font-bold text-zinc-800 hover:border-zinc-300 focus:border-emerald-500 focus:bg-white focus:outline-none transition-all cursor-pointer"
+                      >
+                        <option value="All Locations">All Locations</option>
+                        {availableLocations.map((loc) => {
+                          const count = locationCounts[loc] || 0;
+                          return (
+                            <option key={loc} value={loc}>
+                              {loc} {count > 0 ? `(${count})` : ""}
+                            </option>
+                          );
+                        })}
+                        {locationCounts.unspecified > 0 && (
+                          <option value="Unspecified / No Location">
+                            Unspecified ({locationCounts.unspecified})
+                          </option>
+                        )}
+                      </select>
+                      <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Agent / User (Admin-only) */}
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-zinc-400 mb-1">
+                      Assigned Agent
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={userFilter}
+                        onChange={(e) => setUserFilter(e.target.value)}
+                        className="w-full appearance-none rounded-xl border border-zinc-200 bg-zinc-50/80 pl-2.5 pr-7 py-1.5 text-xs font-bold text-zinc-800 hover:border-zinc-300 focus:border-emerald-500 focus:bg-white focus:outline-none transition-all cursor-pointer"
+                      >
+                        <option value="All Users">All Users &amp; Agents</option>
+                        {agents.map((a) => (
+                          <option key={a.id} value={a.id}>{a.name}</option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Popover Footer */}
+                <div className="mt-3 pt-2.5 border-t border-zinc-100 flex items-center justify-between">
+                  <div>
+                    {activeFilterCount > 0 ? (
+                      <button
+                        type="button"
+                        onClick={handleResetFilters}
+                        className="text-xs font-bold text-red-600 hover:text-red-700 hover:underline flex items-center gap-1"
+                      >
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        Clear filters ({activeFilterCount})
+                      </button>
+                    ) : (
+                      <span className="text-xs text-zinc-400 font-medium">No active filters</span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowFilterPopover(false)}
+                    className="rounded-xl bg-zinc-900 px-4 py-1.5 text-xs font-bold text-white hover:bg-zinc-800 transition-colors shadow-2xs"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
-      {/* ── KANBAN VIEW ────────────────────────────────────────────────────────── */}
+      {/* ── KANBAN VIEW: 4 equal columns fitting 100% within screen width without getting cut off ── */}
       {viewMode === "kanban" ? (
-        <div className="flex gap-4 overflow-x-auto pb-6 flex-1 items-start">
+        <div className="grid grid-cols-4 gap-2.5 w-full pb-6 min-h-[calc(100vh-210px)]">
           {STAGES.map((stage) => {
             const stageLeads = filteredLeads.filter((l) => l.stage === stage);
             const meta = stageMeta[stage] ?? stageMeta.Initial;
+            const stageLabel = STAGE_LABELS[stage] ?? stage.toUpperCase();
             const isDragTarget = dragOverStage === stage;
 
             return (
               <div
                 key={stage}
-                onDragOver={(e) => { e.preventDefault(); setDragOverStage(stage); }}
-                onDragLeave={() => setDragOverStage(null)}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  if (dragOverStage !== stage) setDragOverStage(stage);
+                }}
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  setDragOverStage(stage);
+                }}
+                onDragLeave={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                    setDragOverStage(null);
+                  }
+                }}
                 onDrop={() => handleDrop(stage)}
-                className={`flex flex-1 min-w-[290px] max-w-[360px] flex-none flex-col rounded-2xl border bg-zinc-50/50 p-4 transition-all ${
-                  isDragTarget ? "bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-200" : "border-zinc-200/80"
+                className={`flex min-w-0 flex-col rounded-2xl bg-[#f8fafc] p-2.5 transition-all duration-200 border border-zinc-200/80 h-full ${
+                  isDragTarget ? "bg-emerald-50/50 border-emerald-400 ring-2 ring-emerald-200 scale-[1.01]" : ""
                 }`}
               >
-                {/* Column header matching screenshot */}
-                <div className="mb-4 flex items-center justify-between px-1">
-                  <div className="flex items-center gap-2">
-                    <div className={`h-2.5 w-2.5 rounded-full ${meta.dot}`} />
-                    <h2 className="text-xs font-black uppercase tracking-wider text-zinc-900">{stage}</h2>
+                {/* Column header matching Forex CRM */}
+                <div className="mb-2.5 flex items-center justify-between px-1 pt-0.5 pb-2 border-b border-zinc-200/70">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className={`h-2.5 w-2.5 flex-none rounded-full ${meta.dot} shadow-xs`} />
+                    <h2 className="truncate text-[11.5px] font-black text-zinc-900 uppercase tracking-wider">{stageLabel}</h2>
                   </div>
-                  <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${meta.badge}`}>
+                  <span className={`ml-1.5 flex-none rounded-full px-2 py-0.5 text-[10.5px] font-bold min-w-[20px] text-center shadow-2xs ${
+                    stageLeads.length > 0 ? meta.badge : "bg-zinc-200 text-zinc-600"
+                  }`}>
                     {stageLeads.length}
                   </span>
                 </div>
 
                 {/* Cards stack */}
-                <div className="flex flex-col gap-3 min-h-[220px]">
+                <div className="flex flex-col gap-2.5">
                   {stageLeads.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-10 text-center rounded-2xl border border-dashed border-zinc-300/80 bg-white/60">
-                      <div className={`mb-2 h-7 w-7 rounded-full ${meta.dot} opacity-20`} />
-                      <p className="text-xs text-zinc-400 font-semibold">No enquiries in {stage}</p>
+                    <div className="flex flex-col items-center justify-center py-6 px-3 text-center rounded-xl border border-dashed border-zinc-200/90 bg-white/40">
+                      <p className="text-[11px] text-zinc-400 font-semibold">No enquiries in {stageLabel}</p>
                     </div>
                   ) : (
                     stageLeads.map((deal) => {
                       const nextStage = STAGES[STAGES.indexOf(stage) + 1] as Stage | undefined;
                       const nextMeta = nextStage ? stageMeta[nextStage] : undefined;
                       const assignedName = agentMap[deal.ownerId] ?? deal.assignAgent ?? "Unassigned";
+                      const isColored = isColoredCard(deal.color);
+                      const noteStatus = getNoteStatus(deal.notes, deal.formNotes);
+                      const locText = deal.city?.trim() || deal.assignedBranchName?.trim() || "";
+
+                      const rawList = deal.services && deal.services.length > 0 ? deal.services : deal.serviceType ? [deal.serviceType] : [];
+                      const filtered = rawList.filter((s) => Boolean(s) && s !== "Tours & Packages");
+                      const displayServices = filtered.length > 0 ? filtered : rawList.includes("Tours & Packages") ? ["Domestic Tours"] : [];
 
                       return (
                         <div
@@ -736,121 +984,165 @@ export default function AdminLeadsClient({
                           onDragStart={() => setDraggingId(deal.id)}
                           onDragEnd={() => { setDraggingId(null); setDragOverStage(null); }}
                           onClick={() => setEditingLead(deal)}
-                          className={`group cursor-pointer rounded-2xl border p-4 shadow-xs transition-all hover:shadow-md ${cardBg(deal.color)} ${
+                          className={`group relative cursor-pointer rounded-2xl border p-3 transition-all duration-150 hover:-translate-y-0.5 active:cursor-grabbing select-none shadow-[0_1px_4px_rgba(0,0,0,0.05)] hover:shadow-md ${cardBg(deal.color)} ${
                             draggingId === deal.id ? "opacity-30 scale-95" : ""
                           }`}
                         >
-                          {/* Name */}
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="truncate text-xl font-black text-zinc-900 leading-tight group-hover:text-emerald-800 transition-colors">
-                              {deal.name}
-                            </p>
-                            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${channelPill[deal.channel] ?? "bg-zinc-50 text-zinc-600 border-zinc-200"}`}>
-                              {deal.channel}
+                          {/* Row 1: Name + Relative time + Delete */}
+                          <div className="flex items-start justify-between gap-1.5">
+                            <div className="min-w-0 flex-1">
+                              <p className={`truncate text-[13px] font-bold leading-snug ${isColored ? "text-white" : "text-zinc-900 group-hover:text-emerald-700 transition-colors"}`}>
+                                {deal.name}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className={`text-[10.5px] font-medium ${isColored ? "text-white/80" : "text-zinc-400"}`}>
+                                {formatRelativeTime(deal.createdAt)}
+                              </span>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); deleteLead(deal.id); }}
+                                className={`opacity-0 group-hover:opacity-100 rounded p-0.5 transition-all shrink-0 ${isColored ? "text-white/60 hover:text-white hover:bg-white/20" : "text-zinc-400 hover:text-red-500 hover:bg-red-50"}`}
+                                title="Delete Lead"
+                              >
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Row 2: Phone */}
+                          {deal.phone && (
+                            <div className={`mt-1 flex items-center gap-1 text-[11px] font-medium ${isColored ? "text-white/90" : "text-zinc-600"}`}>
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={isColored ? "text-white/80" : "text-zinc-400 shrink-0"}>
+                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1.2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.9a16 16 0 0 0 6.08 6.08l.96-.96a2 2 0 0 1 2.11-.45c.9.36 1.84.58 2.81.7A2 2 0 0 1 22 16.92z" strokeLinecap="round"/>
+                              </svg>
+                              <span className="truncate">{deal.phone}</span>
+                            </div>
+                          )}
+
+                          {/* Row 3: Badges (Agent, Location, Channel) */}
+                          <div className="mt-2 flex flex-wrap items-center gap-1">
+                            <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold border ${
+                              isColored
+                                ? "bg-white/20 text-white border-white/30"
+                                : "bg-[#f3e8ff] text-[#7e22ce] border-[#e9d5ff]"
+                            }`}>
+                              {assignedName}
+                            </span>
+
+                            {locText && (
+                              <span className={`inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-semibold border ${
+                                isColored
+                                  ? "bg-white text-zinc-900 border-white/60 shadow-2xs"
+                                  : "bg-[#fef3c7] text-[#b45309] border-[#fde68a]"
+                              }`}>
+                                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={isColored ? "text-zinc-700" : "text-amber-600"}>
+                                  <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/><circle cx="12" cy="10" r="3"/>
+                                </svg>
+                                {locText}
+                              </span>
+                            )}
+
+                            <span className={`inline-flex items-center justify-center rounded-md p-1 border ${
+                              isColored ? "bg-white border-white/60 shadow-2xs text-zinc-800" : "bg-white border-zinc-200/90 shadow-2xs"
+                            }`} title={deal.channel}>
+                              <ChannelIcon channel={deal.channel} className="h-2.5 w-2.5" />
                             </span>
                           </div>
 
-                          {/* Phone */}
-                          {deal.phone && (
-                            <div className="mt-2.5 flex items-center gap-1.5 text-xs text-zinc-600 font-semibold">
-                              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-zinc-100 text-zinc-500 shrink-0">
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1.2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.9a16 16 0 0 0 6.08 6.08l.96-.96a2 2 0 0 1 2.11-.45c.9.36 1.84.58 2.81.7A2 2 0 0 1 22 16.92z" strokeLinecap="round"/></svg>
+                          {/* Row 4: Service Pill & Deal Value */}
+                          <div className="mt-1 flex flex-wrap items-center gap-1">
+                            {displayServices.map((svc) => (
+                              <span
+                                key={svc}
+                                className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold border ${
+                                  isColored
+                                    ? "bg-white text-[#0369a1] border-white/60 shadow-2xs"
+                                    : "bg-[#ecfdf5] text-[#065f46] border-[#a7f3d0]"
+                                }`}
+                              >
+                                {svc}
                               </span>
-                              <span>{deal.phone}</span>
-                            </div>
-                          )}
+                            ))}
 
-                          {/* Revenue */}
-                          {deal.value > 0 && (
-                            <div className="mt-2 flex items-center">
-                              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 border border-emerald-300/80 px-2 py-0.5 text-xs font-black text-emerald-800 shadow-2xs">
+                            {deal.value > 0 && (
+                              <span className={`inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-bold border ${
+                                isColored
+                                  ? "bg-white text-emerald-900 border-white/60 shadow-2xs"
+                                  : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                              }`}>
                                 <span>₹</span>{deal.value.toLocaleString("en-IN")}
-                              </span>
-                            </div>
-                          )}
-
-                          {/* User & Location Badges */}
-                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                            <span className="rounded-md bg-violet-50 border border-violet-200 px-2 py-0.5 text-[10px] font-bold text-violet-700">
-                              {assignedName}
-                            </span>
-                            {(deal.city || deal.assignedBranchName) && (
-                              <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 border border-amber-200/80 px-2 py-0.5 text-[10px] font-bold text-amber-800">
-                                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" strokeLinecap="round" strokeLinejoin="round"/>
-                                  <circle cx="12" cy="10" r="3" strokeLinecap="round" strokeLinejoin="round"/>
-                                </svg>
-                                {deal.city || deal.assignedBranchName}
                               </span>
                             )}
                           </div>
 
-                          {/* Services */}
-                          {(() => {
-                            const rawList = deal.services && deal.services.length > 0 ? deal.services : deal.serviceType ? [deal.serviceType] : [];
-                            const filtered = rawList.filter((s) => Boolean(s) && s !== "Tours & Packages");
-                            const displayList = filtered.length > 0 ? filtered : rawList.includes("Tours & Packages") ? ["Domestic Tours"] : [];
-                            if (displayList.length === 0) return null;
-                            return (
-                              <div className="mt-2 flex flex-wrap gap-1.5">
-                                {displayList.map((svc) => (
-                                  <span key={svc} className="rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-bold text-emerald-800 shadow-2xs">
-                                    {svc}
-                                  </span>
-                                ))}
-                              </div>
-                            );
-                          })()}
+                          {/* Row 5: Action Footer (Reminder, Note, Move next) */}
+                          <div className={`mt-2.5 flex items-center justify-between gap-1 pt-2 border-t ${
+                            isColored ? "border-white/20" : "border-zinc-100"
+                          }`}>
+                            <div className="flex items-center gap-1">
+                              {/* Reminder Button */}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setReminderLead(deal); }}
+                                className={`relative flex h-6.5 w-6.5 items-center justify-center rounded-lg border transition-all ${
+                                  isColored
+                                    ? "bg-white/20 text-white border-white/30 hover:bg-white/30"
+                                    : deal.reminderAt
+                                    ? "bg-emerald-500 text-white border-emerald-600 shadow-emerald-500/20"
+                                    : "bg-white text-zinc-400 border-zinc-200 hover:bg-zinc-50 hover:text-zinc-600"
+                                }`}
+                                title={deal.reminderAt ? "Reminder active" : "Set Reminder"}
+                              >
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                                </svg>
+                                {deal.reminderAt && (
+                                  <span className="absolute -top-0.5 -right-0.5 flex h-1.5 w-1.5 rounded-full bg-emerald-500 ring-1.5 ring-white" />
+                                )}
+                              </button>
 
-                          {/* Time & Note Button */}
-                          <div className="mt-3 flex items-center justify-between gap-2 pt-1 border-t border-zinc-100/80">
-                            <span className="text-[11px] text-zinc-400 font-medium">{formatRelativeTime(deal.createdAt)}</span>
-                            {(() => {
-                              const noteStatus = getNoteStatus(deal.notes, deal.formNotes);
-                              return (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); setViewingNoteLead(deal); }}
-                                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
-                                    noteStatus.hasAnyNote
-                                      ? "bg-amber-100/90 text-amber-900 border border-amber-300/80 shadow-2xs hover:bg-amber-200"
-                                      : "bg-zinc-100 text-zinc-600 border border-zinc-200/60 hover:bg-zinc-200 hover:text-zinc-900"
-                                  }`}
-                                  title={noteStatus.hasAnyNote ? "View Note" : "Add note"}
-                                >
-                                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5"/><path d="M17.5 2.5a2.121 2.121 0 0 1 3 3L12 14l-4 1 1-4 7.5-7.5z"/></svg>
-                                  {noteStatus.kanbanLabel}
-                                </button>
-                              );
-                            })()}
-                          </div>
+                              {/* Note Button: amber with notification dot matching Forex CRM */}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setViewingNoteLead(deal); }}
+                                className={`relative flex h-6.5 w-6.5 items-center justify-center rounded-lg border transition-all ${
+                                  noteStatus.hasAnyNote
+                                    ? "bg-[#fbbf24] text-zinc-900 border-[#f59e0b] shadow-2xs font-bold"
+                                    : isColored
+                                    ? "bg-white/20 text-white border-white/30 hover:bg-white/30"
+                                    : "bg-white text-zinc-400 border-zinc-200 hover:bg-zinc-50 hover:text-zinc-600"
+                                }`}
+                                title={noteStatus.hasAnyNote ? "View note" : "Add note"}
+                              >
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                                  <path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5"/><path d="M17.5 2.5a2.121 2.121 0 0 1 3 3L12 14l-4 1 1-4 7.5-7.5z"/>
+                                </svg>
+                                {noteStatus.hasAnyNote && (
+                                  <span className="absolute -top-0.5 -right-0.5 flex h-1.5 w-1.5 rounded-full bg-[#ea580c] ring-1.5 ring-white" />
+                                )}
+                              </button>
+                            </div>
 
-                          {/* Footer Row: Reminder + Move stage */}
-                          <div className="mt-3.5 flex items-center justify-between border-t border-zinc-100 pt-3 gap-2">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setReminderLead(deal); }}
-                              className={`flex h-7 w-7 items-center justify-center rounded-xl border transition-all shadow-2xs shrink-0 ${
-                                deal.reminderAt
-                                  ? "bg-emerald-500 text-white border-emerald-600 shadow-emerald-500/20"
-                                  : "bg-zinc-100 text-zinc-400 border-zinc-200/80 hover:bg-zinc-200 hover:text-zinc-700"
-                              }`}
-                              title={deal.reminderAt ? `Reminder active` : "Set Reminder Alert"}
-                            >
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                            </button>
-
+                            {/* Stage progression action button matching Forex CRM */}
                             {nextStage ? (
                               <button
                                 onClick={(e) => { e.stopPropagation(); triggerStageChange(deal.id, nextStage); }}
-                                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-extrabold transition-all shadow-xs hover:shadow-md ${
-                                  nextMeta ? `${nextMeta.badge} hover:opacity-95` : "bg-zinc-900 text-white"
+                                className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold text-white shadow-2xs transition-all active:scale-95 whitespace-nowrap ${
+                                  stage === "Initial"
+                                    ? "bg-[#ea580c] hover:bg-[#c2410c]"
+                                    : stage === "Connected"
+                                    ? "bg-[#059669] hover:bg-[#047857]"
+                                    : nextMeta ? `${nextMeta.badge} hover:opacity-95` : "bg-zinc-900"
                                 }`}
                               >
-                                Move Next
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                <span>Move next</span>
+                                <span className="font-bold">➔</span>
                               </button>
+                            ) : stage === "Confirmed" ? (
+                              <span className="flex items-center gap-1 rounded-lg bg-[#ecfdf5] border border-[#a7f3d0] px-2.5 py-0.5 text-[11px] font-bold text-[#059669] whitespace-nowrap">
+                                <span>✓</span>
+                                <span>Won</span>
+                              </span>
                             ) : (
-                              <span className="flex items-center gap-1.5 rounded-xl bg-red-50 border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                              <span className="flex items-center gap-1 rounded-lg bg-red-50 border border-red-200 px-2.5 py-0.5 text-[11px] font-bold text-red-600 whitespace-nowrap">
                                 Closed
                               </span>
                             )}
@@ -861,14 +1153,17 @@ export default function AdminLeadsClient({
                   )}
                 </div>
 
-                {/* Add Lead button matching screenshot */}
+                {/* Add Lead button matching Forex CRM */}
                 <button
                   onClick={() => setEditingLead(null)}
-                  className="mt-3 flex-none flex items-center justify-center gap-1.5 rounded-xl border border-zinc-200 bg-white py-2.5 text-xs font-bold text-zinc-600 hover:bg-zinc-50 shadow-2xs transition-all"
+                  className="mt-2.5 flex-none flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-zinc-300 bg-white/70 py-2 text-xs font-semibold text-zinc-500 hover:text-zinc-800 hover:bg-white hover:border-zinc-400 shadow-2xs transition-all"
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 5v14M5 12h14" strokeLinecap="round"/></svg>
-                  Add Lead
+                  <span className="text-sm font-bold leading-none">+</span>
+                  <span>Add Lead</span>
                 </button>
+
+                {/* Stretched drop target area: fills remaining height to bottom of column */}
+                <div className="flex-1 min-h-[60px]" />
               </div>
             );
           })}
@@ -883,7 +1178,7 @@ export default function AdminLeadsClient({
                   <th className="px-5 py-3.5">Lead Name</th>
                   <th className="px-5 py-3.5">Services</th>
                   <th className="px-5 py-3.5">Stage</th>
-                  <th className="px-5 py-3.5">Channel</th>
+                  <th className="px-5 py-3.5 text-center">Channel</th>
                   <th className="px-5 py-3.5">Notes &amp; Reminder</th>
                   <th
                     className="px-5 py-3.5 cursor-pointer select-none hover:text-zinc-700 transition-colors"
@@ -1000,10 +1295,15 @@ export default function AdminLeadsClient({
                       </td>
 
                       {/* Channel */}
-                      <td className="px-5 py-3.5">
-                        <span className={`inline-flex items-center rounded-lg border px-2.5 py-0.5 text-xs font-bold ${channelPill[deal.channel] ?? "bg-zinc-100 text-zinc-600 border-zinc-200"}`}>
-                          {deal.channel}
-                        </span>
+                      <td className="px-5 py-3.5 text-center">
+                        <div className="flex items-center justify-center">
+                          <span
+                            className="inline-flex items-center justify-center rounded-lg p-1.5 border shadow-2xs bg-zinc-50 border-zinc-200 text-zinc-700"
+                            title={deal.channel}
+                          >
+                            <ChannelIcon channel={deal.channel} className="h-4 w-4" />
+                          </span>
+                        </div>
                       </td>
 
                       {/* Notes & Reminder indicators */}
@@ -1014,15 +1314,15 @@ export default function AdminLeadsClient({
                             return (
                               <button
                                 onClick={() => setViewingNoteLead(deal)}
-                                className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
+                                className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-bold transition-all border shadow-2xs ${
                                   noteStatus.hasAnyNote
-                                    ? "bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 shadow-2xs"
-                                    : "bg-zinc-50 text-zinc-400 border border-zinc-200/60 hover:text-zinc-700 hover:bg-zinc-100"
+                                    ? "bg-[#fef9c3] text-[#78350f] border-[#fde047] hover:bg-[#fef08a]"
+                                    : "bg-white text-zinc-500 border-zinc-200/90 hover:bg-zinc-50 hover:text-zinc-700"
                                 }`}
                                 title={noteStatus.hasAnyNote ? "View Note" : "Add note"}
                               >
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5"/><path d="M17.5 2.5a2.121 2.121 0 0 1 3 3L12 14l-4 1 1-4 7.5-7.5z"/></svg>
-                                {noteStatus.tableLabel}
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5"/><path d="M17.5 2.5a2.121 2.121 0 0 1 3 3L12 14l-4 1 1-4 7.5-7.5z"/></svg>
+                                <span>Note</span>
                               </button>
                             );
                           })()}

@@ -841,15 +841,27 @@ export default function LeadDrawer({
         <div className="flex w-full max-w-lg flex-col bg-white shadow-2xl">
           {/* Header */}
           <div className="bg-white border-b border-zinc-200 flex-none">
-            <div className="flex items-center gap-3 px-5 pt-4 pb-3">
+            <div className="flex items-center gap-3 px-5 py-3.5">
               <button onClick={onClose} className="flex-none p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </button>
-              <div className={`flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-to-br ${getGradient(lead.name)} text-xs font-bold text-white shadow-2xs`}>
-                {initials(lead.name)}
+              <div className={`flex h-10 w-10 flex-none items-center justify-center rounded-2xl bg-gradient-to-br ${getGradient(name || lead.name)} text-xs font-bold text-white shadow-2xs`}>
+                {initials(name || lead.name)}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-base font-black text-zinc-900 leading-tight truncate">{lead.name}</p>
+                <div className="flex items-center gap-2">
+                  <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${stageColor[lead.stage] ?? "bg-zinc-400"}`} />
+                  <span className="text-sm font-extrabold text-zinc-900 leading-tight truncate">{lead.stage}</span>
+                  <span className="text-[11px] font-medium text-zinc-400 shrink-0">({formatRelativeTime(lead.createdAt)})</span>
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="inline-flex items-center rounded-md bg-zinc-100 px-1.5 py-0.5 text-[10.5px] font-bold text-zinc-700">
+                    {lead.channel}
+                  </span>
+                  {!isAtFinalStage && (
+                    <span className="text-[11px] font-extrabold text-emerald-600">{progressPct}%</span>
+                  )}
+                </div>
               </div>
 
               <button
@@ -876,23 +888,11 @@ export default function LeadDrawer({
               </button>
             </div>
 
-            <div className="px-5 pb-3">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span className={`h-2 w-2 rounded-full ${stageColor[lead.stage] ?? "bg-zinc-400"}`} />
-                  <span className="text-xs font-bold text-zinc-800">{lead.stage}</span>
-                  <span className="text-[11px] font-medium text-zinc-400">({formatRelativeTime(lead.createdAt)})</span>
-                </div>
-                {!isAtFinalStage && (
-                  <span className="text-xs font-extrabold text-emerald-700">{progressPct}%</span>
-                )}
-              </div>
-              <div className="h-1 bg-zinc-100 rounded-full overflow-hidden">
-                <div
-                  className={`h-1 rounded-full transition-all ${stageColor[lead.stage] ?? "bg-emerald-500"}`}
-                  style={{ width: `${progressPct}%` }}
-                />
-              </div>
+            <div className="h-1 bg-zinc-100 overflow-hidden">
+              <div
+                className={`h-1 transition-all ${stageColor[lead.stage] ?? "bg-emerald-500"}`}
+                style={{ width: `${progressPct}%` }}
+              />
             </div>
 
             {/* Tab navigation */}

@@ -106,8 +106,12 @@ function ChannelIcon({ channel, className = "h-3.5 w-3.5" }: { channel: Channel;
       );
     case "Facebook":
       return (
-        <svg className={`${className} text-blue-600`} viewBox="0 0 24 24" fill="currentColor">
-          <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
+        <svg className={className} viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="12" fill="#1877F2" />
+          <path
+            d="M15.12 12.67l.46-3h-2.88V7.72c0-.82.4-1.62 1.69-1.62h1.31V3.54s-1.19-.2-2.33-.2c-2.37 0-3.92 1.44-3.92 4.04v2.29H6.81v3h2.62v7.26c.53.08 1.07.13 1.62.13s1.09-.05 1.62-.13v-7.26h2.45z"
+            fill="#FFFFFF"
+          />
         </svg>
       );
     case "Ads":
@@ -1063,10 +1067,8 @@ export default function AdminLeadsClient({
                               </span>
                             )}
 
-                            <span className={`inline-flex items-center justify-center rounded-md p-1 border ${
-                              isColored ? "bg-white border-white/60 shadow-2xs text-zinc-800" : "bg-white border-zinc-200/90 shadow-2xs"
-                            }`} title={deal.channel}>
-                              <ChannelIcon channel={deal.channel} className="h-2.5 w-2.5" />
+                            <span className="inline-flex items-center justify-center shrink-0" title={deal.channel}>
+                              <ChannelIcon channel={deal.channel} className="h-3.5 w-3.5" />
                             </span>
                           </div>
 
@@ -1318,11 +1320,8 @@ export default function AdminLeadsClient({
                       {/* Channel */}
                       <td className="px-5 py-3.5 text-center">
                         <div className="flex items-center justify-center">
-                          <span
-                            className="inline-flex items-center justify-center rounded-lg p-1.5 border shadow-2xs bg-zinc-50 border-zinc-200 text-zinc-700"
-                            title={deal.channel}
-                          >
-                            <ChannelIcon channel={deal.channel} className="h-4 w-4" />
+                          <span className="inline-flex items-center justify-center shrink-0" title={deal.channel}>
+                            <ChannelIcon channel={deal.channel} className="h-4.5 w-4.5" />
                           </span>
                         </div>
                       </td>

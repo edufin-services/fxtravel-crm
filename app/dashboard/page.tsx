@@ -48,8 +48,12 @@ const CHANNEL_ICONS: Record<string, React.ReactNode> = {
     </svg>
   ),
   Facebook: (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="12" fill="#1877F2" />
+      <path
+        d="M15.12 12.67l.46-3h-2.88V7.72c0-.82.4-1.62 1.69-1.62h1.31V3.54s-1.19-.2-2.33-.2c-2.37 0-3.92 1.44-3.92 4.04v2.29H6.81v3h2.62v7.26c.53.08 1.07.13 1.62.13s1.09-.05 1.62-.13v-7.26h2.45z"
+        fill="#FFFFFF"
+      />
     </svg>
   ),
   Ads: (

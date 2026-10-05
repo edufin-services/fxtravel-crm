@@ -39,6 +39,8 @@ interface User {
   company?: string;
   branchId?: string;
   branchName?: string;
+  isLeadPaused?: boolean;
+  leadPauseReason?: string;
 }
 
 interface Props {
@@ -511,17 +513,23 @@ export default function AdminBranchesClient({ initialLeads, initialBranches, use
                 Branch Users ({delhiUsers.length})
               </span>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                {delhiUsers.length > 1 ? `Round-Robin Active (${delhiUsers.length} Users)` : `Dedicated Assignment`}
+                {delhiUsers.length > 1
+                  ? `Round-Robin (${delhiUsers.filter((u) => !u.isLeadPaused).length}/${delhiUsers.length} Active)`
+                  : delhiUsers.some((u) => u.isLeadPaused) ? "Directing Paused" : "Dedicated Assignment"}
               </span>
             </div>
             <div className="flex flex-wrap gap-2 items-center">
               {delhiUsers.map((u) => (
                 <span
                   key={u.id}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-white border border-zinc-200/80 px-2.5 py-1 text-xs font-semibold text-zinc-800 shadow-2xs"
+                  className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold shadow-2xs ${
+                    u.isLeadPaused ? "bg-amber-50/80 border-amber-200 text-amber-900" : "bg-white border-zinc-200/80 text-zinc-800"
+                  }`}
+                  title={u.isLeadPaused ? `Leads Paused: ${u.leadPauseReason || "Manual Pause"}` : "Receiving Leads"}
                 >
-                  <span className="h-2 w-2 rounded-full bg-blue-500" />
+                  <span className={`h-2 w-2 rounded-full ${u.isLeadPaused ? "bg-amber-500" : "bg-blue-500"}`} />
                   {u.name}
+                  {u.isLeadPaused && <span className="text-[10px] font-extrabold text-amber-700">(Paused)</span>}
                 </span>
               ))}
               {delhiUsers.length === 0 && <span className="text-xs text-zinc-400">No users assigned</span>}
@@ -621,17 +629,23 @@ export default function AdminBranchesClient({ initialLeads, initialBranches, use
                 Branch Users ({kolkataUsers.length})
               </span>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
-                {kolkataUsers.length > 1 ? `Round-Robin Active (${kolkataUsers.length} Users)` : `Dedicated Assignment`}
+                {kolkataUsers.length > 1
+                  ? `Round-Robin (${kolkataUsers.filter((u) => !u.isLeadPaused).length}/${kolkataUsers.length} Active)`
+                  : kolkataUsers.some((u) => u.isLeadPaused) ? "Directing Paused" : "Dedicated Assignment"}
               </span>
             </div>
             <div className="flex flex-wrap gap-2 items-center">
               {kolkataUsers.map((u) => (
                 <span
                   key={u.id}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-white border border-zinc-200/80 px-2.5 py-1 text-xs font-semibold text-zinc-800 shadow-2xs"
+                  className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold shadow-2xs ${
+                    u.isLeadPaused ? "bg-amber-50/80 border-amber-200 text-amber-900" : "bg-white border-zinc-200/80 text-zinc-800"
+                  }`}
+                  title={u.isLeadPaused ? `Leads Paused: ${u.leadPauseReason || "Manual Pause"}` : "Receiving Leads"}
                 >
-                  <span className="h-2 w-2 rounded-full bg-purple-500" />
+                  <span className={`h-2 w-2 rounded-full ${u.isLeadPaused ? "bg-amber-500" : "bg-purple-500"}`} />
                   {u.name}
+                  {u.isLeadPaused && <span className="text-[10px] font-extrabold text-amber-700">(Paused)</span>}
                 </span>
               ))}
               {kolkataUsers.length === 0 && <span className="text-xs text-zinc-400">No users assigned</span>}

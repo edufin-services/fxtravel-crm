@@ -270,7 +270,7 @@ export default function LeadDrawer({
   // ── Team members for agent assignment ────────────────────────────────────
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [currentUserName, setCurrentUserName] = useState<string>("");
-  const [teamMembers, setTeamMembers] = useState<{ id: string; name: string }[]>([]);
+  const [teamMembers, setTeamMembers] = useState<{ id: string; name: string; isLeadPaused?: boolean; leadPauseReason?: string }[]>([]);
 
   useEffect(() => {
     // Fetch current logged-in user name
@@ -1102,7 +1102,7 @@ export default function LeadDrawer({
                   <option value="">Unassigned</option>
                   {teamMembers.map((m) => (
                     <option key={m.id} value={m.id}>
-                      {m.name} {m.id === currentUserId && currentUserId !== "__admin__" ? "(You)" : ""}
+                      {m.name} {m.id === currentUserId && currentUserId !== "__admin__" ? "(You)" : ""} {m.isLeadPaused ? `(Paused${m.leadPauseReason ? `: ${m.leadPauseReason}` : ""})` : ""}
                     </option>
                   ))}
                   {!teamMembers.length && currentUserId && currentUserId !== "__admin__" && (

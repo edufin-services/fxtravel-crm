@@ -39,6 +39,9 @@ export type User = {
   channels?: Record<string, boolean>;
   notificationPrefs?: Record<string, boolean>;
   notificationsReadAt?: string;
+  isLeadPaused?: boolean;
+  leadPauseReason?: string;
+  leadPausedAt?: string;
 };
 
 export type Notification = {
@@ -351,7 +354,7 @@ export async function updateUserPassword(userId: string, passwordHash: string): 
 
 export async function updateUser(
   userId: string,
-  updates: Partial<Pick<User, "name" | "company" | "email" | "phone" | "passwordHash" | "branchId" | "branchName">>
+  updates: Partial<Pick<User, "name" | "company" | "email" | "phone" | "passwordHash" | "branchId" | "branchName" | "isLeadPaused" | "leadPauseReason" | "leadPausedAt">>
 ): Promise<User | undefined> {
   await dbConnect();
   const doc = await UserModel.findOneAndUpdate({ id: userId }, { $set: updates }, { returnDocument: "after" });
@@ -360,9 +363,24 @@ export async function updateUser(
 
 export async function updateUserProfile(
   userId: string,
-  updates: Partial<Pick<User, "name" | "email" | "phone">>
+  updates: Partial<Pick<User, "name" | "email" | "phone" | "isLeadPaused" | "leadPauseReason" | "leadPausedAt">>
 ): Promise<User | undefined> {
   await dbConnect();
+  const doc = await UserModel.findOneAndUpdate({ id: userId }, { $set: updates }, { returnDocument: "after" });
+  return doc ? toPlain<User>(doc) : undefined;
+}
+
+export async function setUserLeadPauseStatus(
+  userId: string,
+  isLeadPaused: boolean,
+  reason?: string
+): Promise<User | undefined> {
+  await dbConnect();
+  const updates: Record<string, any> = {
+    isLeadPaused,
+    leadPauseReason: isLeadPaused ? (reason || "") : "",
+    leadPausedAt: isLeadPaused ? new Date().toISOString() : "",
+  };
   const doc = await UserModel.findOneAndUpdate({ id: userId }, { $set: updates }, { returnDocument: "after" });
   return doc ? toPlain<User>(doc) : undefined;
 }
@@ -1189,29 +1207,49 @@ export async function getNextBranchUserRoundRobin(branchCityOrKey: string): Prom
   await dbConnect();
   const lower = (branchCityOrKey || "").toLowerCase().trim();
   const isKolkata = lower.includes("kolkata");
+  const isDelhi = lower.includes("delhi");
 
   const branchUsers = await getUsersByBranch(branchCityOrKey);
+  // Filter out users who have paused lead directing
+  const activeBranchUsers = branchUsers.filter((u) => !u.isLeadPaused);
 
-  if (branchUsers.length === 0) {
-    const all = await getAllUsers();
-    if (all.length === 0) return undefined;
-    return all[0];
+  if (activeBranchUsers.length === 1) {
+    return activeBranchUsers[0];
   }
 
-  if (branchUsers.length === 1) {
-    return branchUsers[0];
+  if (activeBranchUsers.length > 1) {
+    const fieldToInc = isKolkata ? "kolkataRoundRobinIndex" : "delhiRoundRobinIndex";
+    const updatedSettings = await AdminSettingsModel.findOneAndUpdate(
+      { id: "admin_settings" },
+      { $inc: { [fieldToInc]: 1 } },
+      { upsert: true, returnDocument: "after" }
+    );
+
+    const idx = Math.abs((updatedSettings as any)?.[fieldToInc] || 0) % activeBranchUsers.length;
+    return activeBranchUsers[idx];
   }
 
-  // Atomic round-robin across users in this specific branch
-  const fieldToInc = isKolkata ? "kolkataRoundRobinIndex" : "delhiRoundRobinIndex";
-  const updatedSettings = await AdminSettingsModel.findOneAndUpdate(
-    { id: "admin_settings" },
-    { $inc: { [fieldToInc]: 1 } },
-    { upsert: true, returnDocument: "after" }
-  );
+  // If no active users in this branch, find any active user across the entire CRM
+  const allUsers = await getAllUsers();
+  const allActiveUsers = allUsers.filter((u) => !u.isLeadPaused);
 
-  const idx = ((updatedSettings as any)?.[fieldToInc] || 0) % branchUsers.length;
-  return branchUsers[idx];
+  if (allActiveUsers.length > 0) {
+    if (allActiveUsers.length === 1) {
+      return allActiveUsers[0];
+    }
+    const updatedSettings = await AdminSettingsModel.findOneAndUpdate(
+      { id: "admin_settings" },
+      { $inc: { globalRoundRobinIndex: 1 } },
+      { upsert: true, returnDocument: "after" }
+    );
+    const idx = Math.abs((updatedSettings as any)?.globalRoundRobinIndex || 0) % allActiveUsers.length;
+    return allActiveUsers[idx];
+  }
+
+  // Emergency fallback if ALL users are paused: return first user so lead is not dropped
+  if (branchUsers.length > 0) return branchUsers[0];
+  if (allUsers.length > 0) return allUsers[0];
+  return undefined;
 }
 
 export async function getBranchById(id: string) {

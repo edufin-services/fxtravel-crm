@@ -16,13 +16,15 @@ export async function POST(request: NextRequest) {
 
     const mouparna = users.find(
       (u) =>
-        u.email?.toLowerCase().includes("mouparna") ||
-        u.name?.toLowerCase().includes("mouparna")
+        (u.email?.toLowerCase().includes("mouparna") ||
+        u.name?.toLowerCase().includes("mouparna")) &&
+        !u.isLeadPaused
     );
     const sheeba = users.find(
       (u) =>
-        u.email?.toLowerCase().includes("sheeba") ||
-        u.name?.toLowerCase().includes("sheeba")
+        (u.email?.toLowerCase().includes("sheeba") ||
+        u.name?.toLowerCase().includes("sheeba")) &&
+        !u.isLeadPaused
     );
 
     if (!mouparna && !sheeba) {

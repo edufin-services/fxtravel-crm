@@ -11,6 +11,8 @@ type UserItem = {
   name: string;
   email: string;
   company: string;
+  isLeadPaused?: boolean;
+  leadPauseReason?: string;
 };
 
 const GRADIENTS: Record<string, string> = {
@@ -836,7 +838,7 @@ export default function ImportLeadsClient({
                 <option value="">Choose User to Assign...</option>
                 {users.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.name} ({u.company || u.email})
+                    {u.name} ({u.company || u.email}){u.isLeadPaused ? ` [PAUSED${u.leadPauseReason ? `: ${u.leadPauseReason}` : ""}]` : ""}
                   </option>
                 ))}
               </select>
@@ -1017,7 +1019,7 @@ export default function ImportLeadsClient({
                             <option value="">Select User...</option>
                             {users.map((u) => (
                               <option key={u.id} value={u.id}>
-                                {u.name} ({u.company || u.email})
+                                {u.name} ({u.company || u.email}){u.isLeadPaused ? ` [PAUSED${u.leadPauseReason ? `: ${u.leadPauseReason}` : ""}]` : ""}
                               </option>
                             ))}
                           </select>
@@ -1180,7 +1182,7 @@ export default function ImportLeadsClient({
                     <option value="">Keep in Pending Queue (Assign manually later)</option>
                     {users.map((u) => (
                       <option key={u.id} value={u.id}>
-                        Assign all {previewAnalysis.newCount} new leads directly to: {u.name} ({u.company || u.email})
+                        Assign all {previewAnalysis.newCount} new leads directly to: {u.name} ({u.company || u.email}){u.isLeadPaused ? ` [PAUSED${u.leadPauseReason ? `: ${u.leadPauseReason}` : ""}]` : ""}
                       </option>
                     ))}
                   </select>

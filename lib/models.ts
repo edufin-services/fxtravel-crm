@@ -26,6 +26,9 @@ const UserSchema = new Schema({
   channels: { type: Map, of: Boolean },
   notificationPrefs: { type: Map, of: Boolean },
   notificationsReadAt: String,
+  isLeadPaused: { type: Boolean, default: false },
+  leadPauseReason: { type: String, default: "" },
+  leadPausedAt: { type: String, default: "" },
 });
 
 export const UserModel = models.User ?? model("User", UserSchema);

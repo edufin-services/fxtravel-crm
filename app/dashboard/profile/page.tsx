@@ -7,6 +7,9 @@ type Profile = {
   name: string;
   email: string;
   phone: string;
+  isLeadPaused?: boolean;
+  leadPauseReason?: string;
+  leadPausedAt?: string;
 };
 
 type Company = {
@@ -35,12 +38,18 @@ const labelCls = "mb-1.5 block text-xs font-bold text-zinc-500 uppercase trackin
 
 export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"personal" | "company" | "security">("personal");
+  const [activeTab, setActiveTab] = useState<"personal" | "directing" | "company" | "security">("personal");
 
   const [profile, setProfile] = useState<Profile>({ name: "", email: "", phone: "" });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
   const [profileError, setProfileError] = useState("");
+
+  const [directingPaused, setDirectingPaused] = useState(false);
+  const [directingReason, setDirectingReason] = useState("On Leave");
+  const [directingSaving, setDirectingSaving] = useState(false);
+  const [directingMessage, setDirectingMessage] = useState("");
+  const [directingError, setDirectingError] = useState("");
 
   const [company, setCompany] = useState<Company>({ company: "", companyWebsite: "", companyIndustry: "", companyTimezone: "" });
   const [companySaving, setCompanySaving] = useState(false);
@@ -61,11 +70,46 @@ export default function ProfilePage() {
     fetch("/api/account")
       .then((res) => res.json())
       .then((data) => {
-        if (data.profile) setProfile(data.profile);
+        if (data.profile) {
+          setProfile(data.profile);
+          setDirectingPaused(Boolean(data.profile.isLeadPaused));
+          if (data.profile.leadPauseReason) setDirectingReason(data.profile.leadPauseReason);
+        }
         if (data.company) setCompany(data.company);
       })
       .finally(() => setLoading(false));
   }, []);
+
+  async function handleDirectingSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setDirectingError("");
+    setDirectingMessage("");
+    setDirectingSaving(true);
+    const res = await fetch("/api/account", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        isLeadPaused: directingPaused,
+        leadPauseReason: directingPaused ? directingReason.trim() : "",
+      }),
+    });
+    const data = await res.json();
+    setDirectingSaving(false);
+    if (!res.ok) {
+      setDirectingError(data.error ?? "Failed to update lead directing status.");
+      return;
+    }
+    if (data.profile) {
+      setProfile((prev) => ({ ...prev, ...data.profile }));
+      setDirectingPaused(Boolean(data.profile.isLeadPaused));
+    }
+    setDirectingMessage(
+      directingPaused
+        ? "Lead directing is paused. You will not receive automatic incoming leads."
+        : "Lead directing is active! You will receive incoming leads via round-robin."
+    );
+    setTimeout(() => setDirectingMessage(""), 4000);
+  }
 
   async function handleProfileSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -181,14 +225,25 @@ export default function ProfilePage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {profile.isLeadPaused ? (
+              <span className="inline-flex items-center gap-1.5 rounded-xl bg-amber-50 px-3 py-1.5 text-xs font-extrabold text-amber-800 border border-amber-300">
+                <span className="h-2 w-2 rounded-full bg-amber-500" />
+                Leads Paused {profile.leadPauseReason ? `(${profile.leadPauseReason})` : ""}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-1.5 text-xs font-extrabold text-emerald-800 border border-emerald-300">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                Receiving Leads
+              </span>
+            )}
             <span className="rounded-xl bg-teal-50 px-3 py-1.5 text-xs font-extrabold text-teal-800 border border-teal-200/80">
-              Account Admin
+              Account Verified
             </span>
           </div>
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 px-6 border-t border-zinc-100 bg-zinc-50/40 py-2">
+        <div className="flex flex-wrap items-center gap-2 px-6 border-t border-zinc-100 bg-zinc-50/40 py-2">
           {[
             {
               id: "personal",
@@ -197,6 +252,15 @@ export default function ProfilePage() {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                   <circle cx="12" cy="7" r="4" />
+                </svg>
+              ),
+            },
+            {
+              id: "directing",
+              label: "Lead Directing & Availability",
+              icon: (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
                 </svg>
               ),
             },
@@ -280,6 +344,122 @@ export default function ProfilePage() {
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-100">
             <button type="submit" disabled={profileSaving} className="rounded-xl bg-teal-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-teal-700 disabled:opacity-60 transition-colors shadow-2xs">
               {profileSaving ? "Saving..." : "Save Profile Changes"}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* ── Tab: Lead Directing & Availability ───────────────────────────── */}
+      {activeTab === "directing" && (
+        <form onSubmit={handleDirectingSubmit} className="rounded-2xl border border-zinc-200/90 bg-white p-6 shadow-2xs space-y-5">
+          <div className="flex items-center justify-between pb-4 border-b border-zinc-100">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-zinc-900">Lead Directing &amp; Availability</h2>
+                <p className="text-xs text-zinc-400">Control whether new inbound leads and round-robin allocations are directed to you</p>
+              </div>
+            </div>
+
+            {directingPaused ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-amber-50 text-amber-800 border border-amber-300">
+                <span className="h-2 w-2 rounded-full bg-amber-500" />
+                Directing Paused
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-300">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                Active &amp; Receiving
+              </span>
+            )}
+          </div>
+
+          {directingError && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs text-rose-700 font-medium">{directingError}</div>}
+          {directingMessage && (
+            <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs text-emerald-700 font-bold">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              {directingMessage}
+            </div>
+          )}
+
+          {/* Toggle Card */}
+          <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-5 space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-bold text-zinc-900">Direct Inbound Leads To Me</h3>
+                <p className="text-xs text-zinc-500 mt-1 max-w-xl leading-relaxed">
+                  When enabled, you participate in branch round-robin distribution and will be automatically assigned incoming leads from Meta Ads, website forms, Google Sheets, and webhook integrations.
+                </p>
+                <p className="text-xs text-zinc-500 mt-1 max-w-xl leading-relaxed">
+                  When paused, incoming leads are automatically redirected to other available executives in your branch or team so no leads are missed.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setDirectingPaused((prev) => !prev)}
+                className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  !directingPaused ? "bg-emerald-600" : "bg-amber-400"
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    !directingPaused ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* When Paused, Provide Reason */}
+            {directingPaused && (
+              <div className="pt-4 border-t border-zinc-200/80 space-y-3 animate-in fade-in">
+                <div>
+                  <label className="block text-xs font-bold text-zinc-700 uppercase tracking-wide mb-1.5">
+                    Pause Reason (Shown to Administrators &amp; Team)
+                  </label>
+                  <div className="flex flex-wrap gap-1.5 mb-2.5">
+                    {["On Leave", "Lunch Break", "Shift Ended", "Catching up with existing leads", "Training / Meeting"].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setDirectingReason(preset)}
+                        className={`px-3 py-1 text-xs rounded-xl font-semibold border transition-all cursor-pointer ${
+                          directingReason === preset
+                            ? "bg-amber-100 text-amber-900 border-amber-300 shadow-2xs"
+                            : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-100"
+                        }`}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    type="text"
+                    value={directingReason}
+                    onChange={(e) => setDirectingReason(e.target.value)}
+                    placeholder="Describe reason (e.g. Taking leave today, off duty)..."
+                    className="w-full rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-xs text-zinc-800 placeholder:text-zinc-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-100">
+            <button
+              type="submit"
+              disabled={directingSaving}
+              className={`rounded-xl px-5 py-2.5 text-xs font-bold text-white transition-all shadow-2xs cursor-pointer ${
+                directingPaused
+                  ? "bg-amber-600 hover:bg-amber-700"
+                  : "bg-emerald-600 hover:bg-emerald-700"
+              }`}
+            >
+              {directingSaving ? "Saving Status..." : directingPaused ? "Confirm Pause Directing" : "Save Active Availability"}
             </button>
           </div>
         </form>

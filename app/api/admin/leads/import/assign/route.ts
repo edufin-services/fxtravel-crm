@@ -25,9 +25,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No lead IDs provided for distribution." }, { status: 400 });
     }
 
-    let targetUsers = allUsers;
+    let targetUsers = allUsers.filter((u) => !u.isLeadPaused);
     if (Array.isArray(body.userIds) && body.userIds.length > 0) {
-      targetUsers = allUsers.filter((u) => body.userIds.includes(u.id));
+      const explicit = allUsers.filter((u) => body.userIds.includes(u.id) && !u.isLeadPaused);
+      targetUsers = explicit.length > 0 ? explicit : allUsers.filter((u) => body.userIds.includes(u.id));
+    }
+
+    if (targetUsers.length === 0) {
+      targetUsers = allUsers;
     }
 
     if (targetUsers.length === 0) {

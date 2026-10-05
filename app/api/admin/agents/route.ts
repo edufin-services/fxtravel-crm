@@ -22,6 +22,9 @@ export async function GET() {
       branchId: a.branchId || (a.email?.toLowerCase().includes("mouparna") || a.name?.toLowerCase().includes("mouparna") ? "br-kolkata-01" : "br-delhi-01"),
       branchName: a.branchName || (a.email?.toLowerCase().includes("mouparna") || a.name?.toLowerCase().includes("mouparna") ? "Kolkata Branch" : "Delhi NCR Branch"),
       createdAt: a.createdAt,
+      isLeadPaused: !!a.isLeadPaused,
+      leadPauseReason: a.leadPauseReason || "",
+      leadPausedAt: a.leadPausedAt || "",
     })),
   });
 }
@@ -30,7 +33,7 @@ export async function POST(request: NextRequest) {
   if (!await requireAdmin()) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await request.json().catch(() => null);
-  const { name, company, email, password, branchId, branchName } = body ?? {};
+  const { name, company, email, password, branchId, branchName, isLeadPaused, leadPauseReason } = body ?? {};
 
   if (
     typeof name !== "string" || !name.trim() ||
@@ -60,6 +63,9 @@ export async function POST(request: NextRequest) {
     branchId: finalBranchId,
     branchName: finalBranchName,
     passwordHash,
+    isLeadPaused: Boolean(isLeadPaused),
+    leadPauseReason: isLeadPaused && typeof leadPauseReason === "string" ? leadPauseReason.trim() : "",
+    leadPausedAt: isLeadPaused ? new Date().toISOString() : "",
   });
 
   return NextResponse.json({
@@ -71,6 +77,9 @@ export async function POST(request: NextRequest) {
       branchId: agent.branchId,
       branchName: agent.branchName,
       createdAt: agent.createdAt,
+      isLeadPaused: !!agent.isLeadPaused,
+      leadPauseReason: agent.leadPauseReason || "",
+      leadPausedAt: agent.leadPausedAt || "",
     },
   }, { status: 201 });
 }

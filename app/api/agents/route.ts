@@ -11,6 +11,11 @@ export async function GET() {
   }
 
   const users = await getAllUsers();
-  const agents = users.map((u) => ({ id: u.id, name: u.name }));
+  const agents = users.map((u) => ({
+    id: u.id,
+    name: u.name,
+    isLeadPaused: !!u.isLeadPaused,
+    leadPauseReason: u.leadPauseReason || "",
+  }));
   return NextResponse.json({ agents });
 }

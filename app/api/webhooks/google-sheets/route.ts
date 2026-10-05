@@ -214,7 +214,7 @@ export async function POST(request: NextRequest) {
     if (agentEmail) {
       await dbConnect();
       const userByEmail = await UserModel.findOne({ email: agentEmail.toLowerCase() });
-      if (userByEmail) {
+      if (userByEmail && !userByEmail.isLeadPaused) {
         ownerId = userByEmail.id;
       }
     }
@@ -230,7 +230,10 @@ export async function POST(request: NextRequest) {
         ownerId = branchUser.id;
       } else {
         const users = await getAllUsers();
-        if (users.length > 0) {
+        const activeUsers = users.filter((u) => !u.isLeadPaused);
+        if (activeUsers.length > 0) {
+          ownerId = activeUsers[0].id;
+        } else if (users.length > 0) {
           ownerId = users[0].id;
         }
       }

@@ -23,7 +23,7 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/admin/
   }
 
   const body = await request.json().catch(() => null);
-  const { name, company, email, password, branchId, branchName } = body ?? {};
+  const { name, company, email, password, branchId, branchName, isLeadPaused, leadPauseReason } = body ?? {};
 
   const updates: {
     name?: string;
@@ -32,6 +32,9 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/admin/
     passwordHash?: string;
     branchId?: string;
     branchName?: string;
+    isLeadPaused?: boolean;
+    leadPauseReason?: string;
+    leadPausedAt?: string;
   } = {};
 
   if (typeof name === "string") {
@@ -75,6 +78,19 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/admin/
     updates.passwordHash = await bcrypt.hash(password.trim(), 10);
   }
 
+  if (typeof isLeadPaused === "boolean") {
+    updates.isLeadPaused = isLeadPaused;
+    if (isLeadPaused) {
+      updates.leadPauseReason = typeof leadPauseReason === "string" ? leadPauseReason.trim() : (existing.leadPauseReason || "");
+      updates.leadPausedAt = existing.leadPausedAt || new Date().toISOString();
+    } else {
+      updates.leadPauseReason = "";
+      updates.leadPausedAt = "";
+    }
+  } else if (typeof leadPauseReason === "string" && existing.isLeadPaused) {
+    updates.leadPauseReason = leadPauseReason.trim();
+  }
+
   const updatedUser = await updateUser(id, updates);
   if (!updatedUser) {
     return NextResponse.json({ error: "Failed to update user." }, { status: 500 });
@@ -89,6 +105,9 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/admin/
       branchId: updatedUser.branchId,
       branchName: updatedUser.branchName,
       createdAt: updatedUser.createdAt,
+      isLeadPaused: !!updatedUser.isLeadPaused,
+      leadPauseReason: updatedUser.leadPauseReason || "",
+      leadPausedAt: updatedUser.leadPausedAt || "",
     },
   });
 }

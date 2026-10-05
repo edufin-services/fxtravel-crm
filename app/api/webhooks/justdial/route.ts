@@ -14,7 +14,8 @@ export async function POST(request: NextRequest) {
     const cleanPhone = String(phone).replace(/\D/g, "");
 
     const users = await getAllUsers();
-    const owner = users[0];
+    const activeUsers = users.filter((u) => !u.isLeadPaused);
+    const owner = activeUsers[0] || users[0];
     if (!owner) {
       return NextResponse.json({ error: "No user found to assign lead" }, { status: 400 });
     }

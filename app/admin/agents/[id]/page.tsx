@@ -21,6 +21,9 @@ export default async function AgentProfilePage({ params }: { params: Promise<{ i
           email: agent.email,
           company: agent.company,
           createdAt: agent.createdAt,
+          isLeadPaused: !!agent.isLeadPaused,
+          leadPauseReason: agent.leadPauseReason || "",
+          leadPausedAt: agent.leadPausedAt || "",
         }}
         initialLeads={leads as any}
       />

@@ -18,6 +18,9 @@ type Agent = {
   email: string;
   company: string;
   createdAt: string;
+  isLeadPaused?: boolean;
+  leadPauseReason?: string;
+  leadPausedAt?: string;
 };
 
 // ── Stage palette ──────────────────────────────────────────────────────────────
@@ -166,10 +169,20 @@ export default function AgentKanbanClient({ agent, initialLeads }: { agent: Agen
 
   const [currentAgent, setCurrentAgent] = useState<Agent>(agent);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [pauseModalOpen, setPauseModalOpen] = useState(false);
+  const [pauseReason, setPauseReason] = useState(agent.leadPauseReason || "On Leave");
+  const [pauseSubmitting, setPauseSubmitting] = useState(false);
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [viewMode, setViewMode] = useState<"kanban" | "table">("kanban");
 
-  async function handleUpdateAgent(data: { name: string; company: string; email: string; password?: string }) {
+  async function handleUpdateAgent(data: {
+    name: string;
+    company: string;
+    email: string;
+    password?: string;
+    isLeadPaused?: boolean;
+    leadPauseReason?: string;
+  }) {
     const res = await fetch(`/api/admin/agents/${currentAgent.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -181,6 +194,24 @@ export default function AgentKanbanClient({ agent, initialLeads }: { agent: Agen
       setShowEditModal(false);
     }
     return body;
+  }
+
+  async function handleTogglePauseDirect(isPaused: boolean, reason?: string) {
+    setPauseSubmitting(true);
+    const res = await fetch(`/api/admin/agents/${currentAgent.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        isLeadPaused: isPaused,
+        leadPauseReason: isPaused ? (reason || "Manual Pause") : "",
+      }),
+    });
+    const body = await res.json();
+    setPauseSubmitting(false);
+    if (res.ok && body.agent) {
+      setCurrentAgent(body.agent);
+      setPauseModalOpen(false);
+    }
   }
 
   useEffect(() => {
@@ -402,16 +433,43 @@ export default function AgentKanbanClient({ agent, initialLeads }: { agent: Agen
         </Link>
 
         <div className="flex items-center gap-2">
+          {currentAgent.isLeadPaused ? (
+            <button
+              onClick={() => handleTogglePauseDirect(false)}
+              disabled={pauseSubmitting}
+              className="flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100 hover:border-emerald-400 active:scale-95 transition-all shadow-xs cursor-pointer"
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+              Resume Directing Leads
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                setPauseReason("On Leave");
+                setPauseModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50/70 px-3.5 py-2 text-xs font-bold text-amber-800 hover:bg-amber-100 hover:border-amber-300 active:scale-95 transition-all shadow-xs cursor-pointer"
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="4" width="4" height="16" rx="1" />
+                <rect x="14" y="4" width="4" height="16" rx="1" />
+              </svg>
+              Pause Directing Leads
+            </button>
+          )}
+
           <button
             onClick={() => setShowEditModal(true)}
-            className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-xs font-bold text-zinc-700 hover:border-emerald-200 hover:text-emerald-700 hover:bg-emerald-50 active:scale-95 transition-all shadow-xs"
+            className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-xs font-bold text-zinc-700 hover:border-emerald-200 hover:text-emerald-700 hover:bg-emerald-50 active:scale-95 transition-all shadow-xs cursor-pointer"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             Edit User
           </button>
           <button
             onClick={() => setModalStage("Initial")}
-            className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 active:scale-95 transition-all shadow-xs"
+            className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 active:scale-95 transition-all shadow-xs cursor-pointer"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14" strokeLinecap="round"/></svg>
             Add Lead for {currentAgent.name.split(" ")[0]}
@@ -431,6 +489,20 @@ export default function AgentKanbanClient({ agent, initialLeads }: { agent: Agen
               <span className="rounded-full bg-violet-50 text-violet-700 border border-violet-200 px-2.5 py-0.5 text-[10px] font-bold">
                 User Pipeline
               </span>
+              {currentAgent.isLeadPaused ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300 px-2.5 py-0.5 text-[10px] font-extrabold shadow-2xs">
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="4" width="4" height="16" rx="1"/>
+                    <rect x="14" y="4" width="4" height="16" rx="1"/>
+                  </svg>
+                  Lead Directing Paused
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 px-2.5 py-0.5 text-[10px] font-extrabold shadow-2xs">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Receiving Leads
+                </span>
+              )}
             </div>
             <p className="text-xs text-zinc-500 mt-0.5">{currentAgent.email} · {currentAgent.company}</p>
             <p className="text-[11px] text-zinc-400 mt-0.5">Joined {new Date(currentAgent.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</p>
@@ -475,6 +547,35 @@ export default function AgentKanbanClient({ agent, initialLeads }: { agent: Agen
           </div>
         </div>
       </div>
+
+      {/* ── Paused Leads Warning Banner ────────────────────────────────────── */}
+      {currentAgent.isLeadPaused && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-amber-900 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 border border-amber-300 flex-none text-amber-700">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="4" width="4" height="16" rx="1" />
+                <rect x="14" y="4" width="4" height="16" rx="1" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-xs font-bold">
+                Lead Directing is Paused {currentAgent.leadPauseReason ? `— Reason: ${currentAgent.leadPauseReason}` : ""}
+              </p>
+              <p className="text-[11px] text-amber-700">
+                New incoming leads from Meta Ads, webhooks, and round-robin distribution will bypass this user until resumed.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => handleTogglePauseDirect(false)}
+            disabled={pauseSubmitting}
+            className="rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 active:scale-95 transition-all shadow-xs flex-none cursor-pointer"
+          >
+            Resume Leads Now
+          </button>
+        </div>
+      )}
 
       {/* ── Filters Bar ─────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1024,6 +1125,77 @@ export default function AgentKanbanClient({ agent, initialLeads }: { agent: Agen
           onUpdate={handleUpdateAgent}
         />
       )}
+
+      {/* ── Pause Directing Leads Modal ───────────────────────────────────── */}
+      {pauseModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setPauseModalOpen(false)}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-zinc-200/80" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start gap-3.5 mb-4">
+              <div className="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-amber-50 border border-amber-200 text-amber-600">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="4" width="4" height="16" rx="1"/>
+                  <rect x="14" y="4" width="4" height="16" rx="1"/>
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-zinc-900">Pause Directing Leads to {currentAgent.name}?</h2>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  When paused, incoming leads will be directed to other available users in this branch or round-robin pool.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wide mb-1.5">
+                  Select Reason (Optional)
+                </label>
+                <div className="flex flex-wrap gap-1.5 mb-2.5">
+                  {["On Leave", "Shift Ended", "Lunch Break", "Overloaded / Catching Up", "Training"].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setPauseReason(preset)}
+                      className={`px-2.5 py-1 text-xs rounded-lg font-semibold border transition-all cursor-pointer ${
+                        pauseReason === preset
+                          ? "bg-amber-100 text-amber-900 border-amber-300 shadow-2xs"
+                          : "bg-zinc-50 text-zinc-600 border-zinc-200 hover:bg-zinc-100"
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  value={pauseReason}
+                  onChange={(e) => setPauseReason(e.target.value)}
+                  placeholder="Or type custom reason (e.g., Doctor appointment)..."
+                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 py-2.5 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-amber-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-100"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setPauseModalOpen(false)}
+                className="flex-1 rounded-xl border border-zinc-200 py-2.5 text-xs font-bold text-zinc-600 hover:bg-zinc-50 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={pauseSubmitting}
+                onClick={() => handleTogglePauseDirect(true, pauseReason)}
+                className="flex-1 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 py-2.5 text-xs font-bold text-white hover:from-amber-500 hover:to-amber-400 disabled:opacity-50 shadow-md shadow-amber-600/20 transition-all cursor-pointer"
+              >
+                {pauseSubmitting ? "Pausing..." : "Pause Directing Leads"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1275,13 +1447,22 @@ function EditUserModal({
 }: {
   agent: Agent;
   onClose: () => void;
-  onUpdate: (data: { name: string; company: string; email: string; password?: string }) => Promise<{ error?: string }>;
+  onUpdate: (data: {
+    name: string;
+    company: string;
+    email: string;
+    password?: string;
+    isLeadPaused?: boolean;
+    leadPauseReason?: string;
+  }) => Promise<{ error?: string }>;
 }) {
   const [name, setName] = useState(agent.name);
   const [company, setCompany] = useState(agent.company);
   const [email, setEmail] = useState(agent.email);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [isLeadPaused, setIsLeadPaused] = useState(Boolean(agent.isLeadPaused));
+  const [leadPauseReason, setLeadPauseReason] = useState(agent.leadPauseReason || "On Leave");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -1289,10 +1470,19 @@ function EditUserModal({
     e.preventDefault();
     setError("");
     setSaving(true);
-    const payload: { name: string; company: string; email: string; password?: string } = {
+    const payload: {
+      name: string;
+      company: string;
+      email: string;
+      password?: string;
+      isLeadPaused: boolean;
+      leadPauseReason: string;
+    } = {
       name: name.trim(),
       company: company.trim(),
       email: email.trim(),
+      isLeadPaused,
+      leadPauseReason: isLeadPaused ? leadPauseReason.trim() : "",
     };
     if (password.trim()) {
       payload.password = password.trim();
@@ -1336,6 +1526,62 @@ function EditUserModal({
           <div>
             <label className="block mb-1.5 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Email Address *</label>
             <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jane@acme.com" className={inputCls} />
+          </div>
+
+          {/* Lead Directing Status Card */}
+          <div className="rounded-xl border border-zinc-200 bg-zinc-50/70 p-3.5 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold text-zinc-900 block">Lead Directing</span>
+                <span className="text-[11px] text-zinc-500 block">
+                  {isLeadPaused ? "Paused — user will be skipped in round-robin and webhook routing" : "Active — user receives incoming leads normally"}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLeadPaused((prev) => !prev)}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  !isLeadPaused ? "bg-emerald-600" : "bg-amber-500"
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                    !isLeadPaused ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {isLeadPaused && (
+              <div className="pt-2 border-t border-zinc-200/80 space-y-2">
+                <label className="block text-[11px] font-bold text-zinc-600 uppercase tracking-wide">
+                  Pause Reason
+                </label>
+                <div className="flex flex-wrap gap-1">
+                  {["On Leave", "Shift Ended", "Lunch Break", "Overloaded / Catching Up", "Training"].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setLeadPauseReason(preset)}
+                      className={`px-2 py-0.5 text-[10px] rounded-md font-semibold border transition-all cursor-pointer ${
+                        leadPauseReason === preset
+                          ? "bg-amber-100 text-amber-900 border-amber-300 shadow-2xs"
+                          : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-100"
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  value={leadPauseReason}
+                  onChange={(e) => setLeadPauseReason(e.target.value)}
+                  placeholder="Reason for pausing leads..."
+                  className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-800 placeholder:text-zinc-400 focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+            )}
           </div>
           <div>
             <div className="flex items-center justify-between mb-1.5">

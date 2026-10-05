@@ -12,6 +12,9 @@ type Agent = {
   branchId?: string;
   branchName?: string;
   createdAt: string;
+  isLeadPaused?: boolean;
+  leadPauseReason?: string;
+  leadPausedAt?: string;
 };
 
 const GRADIENTS: Record<string, string> = {
@@ -36,6 +39,10 @@ export default function AdminAgentsPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteName, setDeleteName] = useState("");
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "paused">("all");
+  const [pauseTarget, setPauseTarget] = useState<Agent | null>(null);
+  const [pauseReason, setPauseReason] = useState("On Leave");
+  const [pauseSubmitting, setPauseSubmitting] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/agents")
@@ -45,16 +52,21 @@ export default function AdminAgentsPage() {
   }, []);
 
   const filteredAgents = useMemo(() => {
+    let list = agents;
+    if (statusFilter === "active") list = list.filter((a) => !a.isLeadPaused);
+    if (statusFilter === "paused") list = list.filter((a) => a.isLeadPaused);
+
     const q = query.trim().toLowerCase();
-    if (!q) return agents;
-    return agents.filter(
+    if (!q) return list;
+    return list.filter(
       (a) =>
         a.name.toLowerCase().includes(q) ||
         a.email.toLowerCase().includes(q) ||
         a.company.toLowerCase().includes(q) ||
-        (a.branchName && a.branchName.toLowerCase().includes(q))
+        (a.branchName && a.branchName.toLowerCase().includes(q)) ||
+        (a.leadPauseReason && a.leadPauseReason.toLowerCase().includes(q))
     );
-  }, [agents, query]);
+  }, [agents, query, statusFilter]);
 
   async function handleCreate(data: {
     name: string;
@@ -63,6 +75,8 @@ export default function AdminAgentsPage() {
     password: string;
     branchId: string;
     branchName: string;
+    isLeadPaused?: boolean;
+    leadPauseReason?: string;
   }) {
     const res = await fetch("/api/admin/agents", {
       method: "POST",
@@ -86,6 +100,8 @@ export default function AdminAgentsPage() {
       password?: string;
       branchId?: string;
       branchName?: string;
+      isLeadPaused?: boolean;
+      leadPauseReason?: string;
     }
   ) {
     const res = await fetch(`/api/admin/agents/${id}`, {
@@ -99,6 +115,38 @@ export default function AdminAgentsPage() {
       setEditAgent(null);
     }
     return body;
+  }
+
+  async function handleResume(agent: Agent) {
+    const res = await fetch(`/api/admin/agents/${agent.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isLeadPaused: false }),
+    });
+    const body = await res.json();
+    if (res.ok && body.agent) {
+      setAgents((prev) => prev.map((a) => (a.id === agent.id ? body.agent : a)));
+    }
+  }
+
+  async function handleConfirmPause() {
+    if (!pauseTarget) return;
+    setPauseSubmitting(true);
+    const res = await fetch(`/api/admin/agents/${pauseTarget.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        isLeadPaused: true,
+        leadPauseReason: pauseReason.trim() || "Manual Pause",
+      }),
+    });
+    const body = await res.json();
+    setPauseSubmitting(false);
+    if (res.ok && body.agent) {
+      setAgents((prev) => prev.map((a) => (a.id === pauseTarget.id ? body.agent : a)));
+      setPauseTarget(null);
+      setPauseReason("On Leave");
+    }
   }
 
   async function confirmDelete() {
@@ -130,33 +178,66 @@ export default function AdminAgentsPage() {
         </button>
       </div>
 
-      {/* Search */}
-      <div className="flex items-center gap-2.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 shadow-xs max-w-sm">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-400 flex-none">
-          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35" strokeLinecap="round"/>
-        </svg>
-        <input
-          type="text"
-          placeholder="Search users by name, email, or branch..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="w-full bg-transparent text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none"
-        />
+      {/* Search and Filters */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 shadow-xs w-full max-w-sm">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-400 flex-none">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35" strokeLinecap="round"/>
+          </svg>
+          <input
+            type="text"
+            placeholder="Search users by name, email, or branch..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-full bg-transparent text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none"
+          />
+        </div>
+
+        {/* Filter Pills */}
+        <div className="flex items-center gap-1 bg-zinc-100/80 p-1 rounded-xl border border-zinc-200/60 shadow-2xs">
+          <button
+            onClick={() => setStatusFilter("all")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              statusFilter === "all" ? "bg-white text-zinc-900 shadow-2xs" : "text-zinc-500 hover:text-zinc-800"
+            }`}
+          >
+            All Users ({agents.length})
+          </button>
+          <button
+            onClick={() => setStatusFilter("active")}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              statusFilter === "active" ? "bg-emerald-600 text-white shadow-2xs" : "text-zinc-500 hover:text-zinc-800"
+            }`}
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${statusFilter === "active" ? "bg-white" : "bg-emerald-500"}`} />
+            Receiving Leads ({agents.filter((a) => !a.isLeadPaused).length})
+          </button>
+          <button
+            onClick={() => setStatusFilter("paused")}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              statusFilter === "paused" ? "bg-amber-500 text-white shadow-2xs" : "text-zinc-500 hover:text-zinc-800"
+            }`}
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${statusFilter === "paused" ? "bg-white" : "bg-amber-500"}`} />
+            Paused ({agents.filter((a) => a.isLeadPaused).length})
+          </button>
+        </div>
       </div>
 
       {/* Table card */}
       <div className="rounded-2xl border border-zinc-200/80 bg-white overflow-hidden shadow-xs">
         {/* Header row */}
-        <div className="grid grid-cols-[2fr_1.6fr_1fr_200px] gap-4 px-5 py-3 bg-zinc-50/80 border-b border-zinc-100 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
+        <div className="grid grid-cols-[1.8fr_1.3fr_1.3fr_1fr_250px] gap-4 px-5 py-3 bg-zinc-50/80 border-b border-zinc-100 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
           <span>User</span>
           <span>Company &amp; Branch</span>
+          <span>Lead Directing</span>
           <span>Joined</span>
           <span className="text-right">Actions</span>
         </div>
 
         {/* Skeleton rows */}
         {loading && [...Array(4)].map((_, i) => (
-          <div key={i} className="grid grid-cols-[2fr_1.6fr_1fr_200px] gap-4 px-5 py-4 border-b border-zinc-50 animate-pulse">
+          <div key={i} className="grid grid-cols-[1.8fr_1.3fr_1.3fr_1fr_250px] gap-4 px-5 py-4 border-b border-zinc-50 animate-pulse">
             <div className="flex items-center gap-3">
               <div className="h-9 w-9 rounded-full bg-zinc-200 flex-none" />
               <div className="space-y-1.5">
@@ -165,6 +246,7 @@ export default function AdminAgentsPage() {
               </div>
             </div>
             <div className="h-3 w-20 rounded bg-zinc-100 self-center" />
+            <div className="h-3 w-24 rounded bg-zinc-100 self-center" />
             <div className="h-3 w-16 rounded bg-zinc-100 self-center" />
             <div />
           </div>
@@ -179,7 +261,7 @@ export default function AdminAgentsPage() {
               </svg>
             </div>
             <p className="text-sm font-semibold text-zinc-600">
-              {agents.length === 0 ? "No users yet" : "No users match your search"}
+              {agents.length === 0 ? "No users yet" : "No users match your criteria"}
             </p>
             {agents.length === 0 && (
               <button onClick={() => setShowModal(true)} className="mt-3 text-xs font-semibold text-emerald-600 hover:text-emerald-700">
@@ -195,7 +277,7 @@ export default function AdminAgentsPage() {
           return (
             <div
               key={agent.id}
-              className="grid grid-cols-[2fr_1.6fr_1fr_200px] gap-4 px-5 py-3.5 items-center hover:bg-zinc-50/60 transition-colors group"
+              className="grid grid-cols-[1.8fr_1.3fr_1.3fr_1fr_250px] gap-4 px-5 py-3.5 items-center hover:bg-zinc-50/60 transition-colors group"
               style={{ borderBottom: idx < filteredAgents.length - 1 ? "1px solid #f4f4f5" : "none" }}
             >
               <Link href={`/admin/agents/${agent.id}`} className="flex items-center gap-3">
@@ -220,10 +302,66 @@ export default function AdminAgentsPage() {
                   </span>
                 </div>
               </div>
+
+              {/* Lead Directing Status Badge */}
+              <div>
+                {agent.isLeadPaused ? (
+                  <div>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-50 text-amber-800 border border-amber-200/90 shadow-2xs">
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="6" y="4" width="4" height="16" rx="1" />
+                        <rect x="14" y="4" width="4" height="16" rx="1" />
+                      </svg>
+                      Directing Paused
+                    </span>
+                    {agent.leadPauseReason && (
+                      <p className="text-[10px] text-zinc-400 mt-0.5 font-medium truncate max-w-[150px]" title={agent.leadPauseReason}>
+                        {agent.leadPauseReason}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200/90 shadow-2xs">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Receiving Leads
+                  </span>
+                )}
+              </div>
+
               <p className="text-xs text-zinc-400">
                 {new Date(agent.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
               </p>
+
+              {/* Action Buttons */}
               <div className="flex items-center gap-1.5 justify-end">
+                {agent.isLeadPaused ? (
+                  <button
+                    onClick={() => handleResume(agent)}
+                    className="rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100 hover:border-emerald-400 transition-all inline-flex items-center gap-1 shadow-2xs cursor-pointer"
+                    title="Resume directing incoming leads to this user"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                      <polygon points="5 3 19 12 5 21 5 3" />
+                    </svg>
+                    Resume
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setPauseTarget(agent);
+                      setPauseReason("On Leave");
+                    }}
+                    className="rounded-lg border border-amber-200 bg-amber-50/70 px-2.5 py-1 text-xs font-bold text-amber-800 hover:bg-amber-100 hover:border-amber-300 transition-all inline-flex items-center gap-1 shadow-2xs cursor-pointer"
+                    title="Pause directing leads to this user"
+                  >
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor">
+                      <rect x="6" y="4" width="4" height="16" rx="1" />
+                      <rect x="14" y="4" width="4" height="16" rx="1" />
+                    </svg>
+                    Pause Leads
+                  </button>
+                )}
+
                 <Link
                   href={`/admin/agents/${agent.id}`}
                   className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-semibold text-zinc-600 hover:border-emerald-200 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
@@ -249,8 +387,9 @@ export default function AdminAgentsPage() {
 
         {/* Footer */}
         {!loading && filteredAgents.length > 0 && (
-          <div className="border-t border-zinc-50 px-5 py-2.5 text-xs text-zinc-400">
-            {filteredAgents.length} user{filteredAgents.length !== 1 ? "s" : ""} across 2 branches
+          <div className="border-t border-zinc-50 px-5 py-2.5 text-xs text-zinc-400 flex items-center justify-between">
+            <span>{filteredAgents.length} user{filteredAgents.length !== 1 ? "s" : ""} shown</span>
+            <span>{agents.filter((a) => !a.isLeadPaused).length} receiving leads · {agents.filter((a) => a.isLeadPaused).length} paused</span>
           </div>
         )}
       </div>
@@ -267,6 +406,77 @@ export default function AdminAgentsPage() {
           onClose={() => setEditAgent(null)}
           onUpdate={handleUpdate}
         />
+      )}
+
+      {/* Pause Directing Leads Modal */}
+      {pauseTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setPauseTarget(null)}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-zinc-200/80" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start gap-3.5 mb-4">
+              <div className="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-amber-50 border border-amber-200 text-amber-600">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="4" width="4" height="16" rx="1"/>
+                  <rect x="14" y="4" width="4" height="16" rx="1"/>
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-zinc-900">Pause Directing Leads to {pauseTarget.name}?</h2>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  When paused, this user will NOT be assigned incoming leads from Meta Ads, webhooks, or round-robin distribution.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wide mb-1.5">
+                  Select Reason (Optional)
+                </label>
+                <div className="flex flex-wrap gap-1.5 mb-2.5">
+                  {["On Leave", "Shift Ended", "Lunch Break", "Overloaded / Catching Up", "Training"].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setPauseReason(preset)}
+                      className={`px-2.5 py-1 text-xs rounded-lg font-semibold border transition-all cursor-pointer ${
+                        pauseReason === preset
+                          ? "bg-amber-100 text-amber-900 border-amber-300 shadow-2xs"
+                          : "bg-zinc-50 text-zinc-600 border-zinc-200 hover:bg-zinc-100"
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  value={pauseReason}
+                  onChange={(e) => setPauseReason(e.target.value)}
+                  placeholder="Or type custom reason (e.g., Doctor appointment)..."
+                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 py-2.5 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-amber-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-100"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setPauseTarget(null)}
+                className="flex-1 rounded-xl border border-zinc-200 py-2.5 text-xs font-bold text-zinc-600 hover:bg-zinc-50 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={pauseSubmitting}
+                onClick={handleConfirmPause}
+                className="flex-1 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 py-2.5 text-xs font-bold text-white hover:from-amber-500 hover:to-amber-400 disabled:opacity-50 shadow-md shadow-amber-600/20 transition-all cursor-pointer"
+              >
+                {pauseSubmitting ? "Pausing..." : "Pause Directing Leads"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Delete Confirm */}
@@ -464,6 +674,8 @@ function EditAgentModal({
     password?: string;
     branchId?: string;
     branchName?: string;
+    isLeadPaused?: boolean;
+    leadPauseReason?: string;
   }) => Promise<{ error?: string }>;
 }) {
   const [name, setName] = useState(agent.name);
@@ -474,6 +686,8 @@ function EditAgentModal({
   );
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [isLeadPaused, setIsLeadPaused] = useState(Boolean(agent.isLeadPaused));
+  const [leadPauseReason, setLeadPauseReason] = useState(agent.leadPauseReason || "On Leave");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -489,12 +703,16 @@ function EditAgentModal({
       password?: string;
       branchId: string;
       branchName: string;
+      isLeadPaused: boolean;
+      leadPauseReason: string;
     } = {
       name: name.trim(),
       company: company.trim(),
       email: email.trim(),
       branchId: chosenBranch.id,
       branchName: chosenBranch.name,
+      isLeadPaused,
+      leadPauseReason: isLeadPaused ? leadPauseReason.trim() : "",
     };
     if (password.trim()) {
       payload.password = password.trim();
@@ -513,16 +731,16 @@ function EditAgentModal({
         <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-5">
           <div>
             <h2 className="text-base font-bold text-zinc-900">Edit User</h2>
-            <p className="text-xs text-zinc-400 mt-0.5">Update branch attribution, profile, and credentials</p>
+            <p className="text-xs text-zinc-400 mt-0.5">Update branch attribution, lead directing status, and credentials</p>
           </div>
-          <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-xl text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors">
+          <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-xl text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors cursor-pointer">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round"/>
             </svg>
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[85vh] overflow-y-auto">
           {error && (
             <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700">{error}</div>
           )}
@@ -558,6 +776,63 @@ function EditAgentModal({
               Changing branch updates round-robin lead allocation for this user.
             </p>
           </div>
+
+          {/* Lead Directing Status Card */}
+          <div className="rounded-xl border border-zinc-200 bg-zinc-50/70 p-3.5 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold text-zinc-900 block">Lead Directing</span>
+                <span className="text-[11px] text-zinc-500 block">
+                  {isLeadPaused ? "Paused — user will be skipped in round-robin and webhook routing" : "Active — user receives incoming leads normally"}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLeadPaused((prev) => !prev)}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  !isLeadPaused ? "bg-emerald-600" : "bg-amber-500"
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                    !isLeadPaused ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {isLeadPaused && (
+              <div className="pt-2 border-t border-zinc-200/80 space-y-2">
+                <label className="block text-[11px] font-bold text-zinc-600 uppercase tracking-wide">
+                  Pause Reason
+                </label>
+                <div className="flex flex-wrap gap-1">
+                  {["On Leave", "Shift Ended", "Lunch Break", "Overloaded / Catching Up", "Training"].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setLeadPauseReason(preset)}
+                      className={`px-2 py-0.5 text-[10px] rounded-md font-semibold border transition-all cursor-pointer ${
+                        leadPauseReason === preset
+                          ? "bg-amber-100 text-amber-900 border-amber-300 shadow-2xs"
+                          : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-100"
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  value={leadPauseReason}
+                  onChange={(e) => setLeadPauseReason(e.target.value)}
+                  placeholder="Reason for pausing leads..."
+                  className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-800 placeholder:text-zinc-400 focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+            )}
+          </div>
+
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
@@ -569,7 +844,7 @@ function EditAgentModal({
                   setPassword(DEFAULT_USER_PASSWORD);
                   setShowPassword(true);
                 }}
-                className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 hover:underline transition-colors"
+                className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 hover:underline transition-colors cursor-pointer"
               >
                 Reset to default ({DEFAULT_USER_PASSWORD})
               </button>
@@ -586,7 +861,7 @@ function EditAgentModal({
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                className="absolute inset-y-0 right-0 flex items-center px-3 text-zinc-400 hover:text-zinc-600"
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-zinc-400 hover:text-zinc-600 cursor-pointer"
               >
                 {showPassword ? (
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -606,11 +881,11 @@ function EditAgentModal({
           </div>
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose}
-              className="flex-1 rounded-xl border border-zinc-200 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50 transition-colors">
+              className="flex-1 rounded-xl border border-zinc-200 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50 transition-colors cursor-pointer">
               Cancel
             </button>
             <button type="submit" disabled={saving}
-              className="flex-1 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 py-2.5 text-sm font-bold text-white hover:from-emerald-500 hover:to-emerald-400 disabled:opacity-50 shadow-sm shadow-emerald-600/20 transition-all">
+              className="flex-1 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 py-2.5 text-sm font-bold text-white hover:from-emerald-500 hover:to-emerald-400 disabled:opacity-50 shadow-sm shadow-emerald-600/20 transition-all cursor-pointer">
               {saving ? "Saving..." : "Save Changes"}
             </button>
           </div>

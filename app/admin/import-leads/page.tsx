@@ -19,6 +19,8 @@ export default async function AdminImportLeadsPage() {
     name: u.name,
     email: u.email,
     company: u.company || "CRM User",
+    isLeadPaused: !!u.isLeadPaused,
+    leadPauseReason: u.leadPauseReason || "",
   }));
 
   return (

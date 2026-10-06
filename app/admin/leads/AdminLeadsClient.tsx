@@ -9,10 +9,12 @@ import LeadDrawer, { type DrawerLead } from "@/app/dashboard/leads/LeadDrawer";
 import SetReminderModal from "@/app/dashboard/leads/SetReminderModal";
 import ViewNoteModal, { getNoteStatus } from "@/app/dashboard/leads/ViewNoteModal";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
+import ExportLeadsButton from "@/app/components/ExportLeadsButton";
 
 type Lead = DrawerLead & {
   value: number;
   ownerId: string;
+  ownerName?: string;
   assignedBranchName?: string;
   assignedBranchId?: string;
   formNotes?: string;
@@ -476,6 +478,20 @@ export default function AdminLeadsClient({
     locationFilter !== "All Locations" ||
     datePreset !== "All Dates";
 
+  const exportableFilteredLeads = useMemo(() => {
+    return filteredLeads.map((l) => ({
+      ...l,
+      ownerName: agentMap[l.ownerId] || l.ownerName || "Unassigned",
+    }));
+  }, [filteredLeads, agentMap]);
+
+  const exportableAllLeads = useMemo(() => {
+    return leads.map((l) => ({
+      ...l,
+      ownerName: agentMap[l.ownerId] || l.ownerName || "Unassigned",
+    }));
+  }, [leads, agentMap]);
+
   async function handleSaveNote(leadId: string, note: string, formNote?: string) {
     setLeads((prev) =>
       prev.map((l) =>
@@ -614,6 +630,13 @@ export default function AdminLeadsClient({
         </div>
 
         <div className="flex items-center gap-2.5">
+          {/* Export to Excel */}
+          <ExportLeadsButton
+            filteredLeads={exportableFilteredLeads}
+            allLeads={exportableAllLeads}
+            fileNamePrefix="Admin_Leads"
+          />
+
           {/* Add New Lead Button matching Image 1 */}
           <button
             onClick={() => setModalStage(STAGES[0])}

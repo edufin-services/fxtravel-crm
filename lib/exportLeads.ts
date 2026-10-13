@@ -23,6 +23,9 @@ export interface ExportLeadItem {
   confirmedAt?: string;
   ownerName?: string;
   assignAgent?: string;
+  assignedFromUserName?: string | null;
+  assignedByUserName?: string | null;
+  assignedAt?: string | null;
   assignedBranchName?: string;
   notes?: string;
   formNotes?: string;
@@ -97,6 +100,9 @@ export function mapLeadToExcelRow(lead: ExportLeadItem): Record<string, string |
     "Updated Date": formatExportDate(lead.updatedAt),
     "Confirmed Date": formatExportDate(lead.confirmedAt),
     "Executive / Agent": lead.ownerName || lead.assignAgent || "",
+    "Assigned From (Previous User)": lead.assignedFromUserName || "",
+    "Assigned By": lead.assignedByUserName || "",
+    "Assigned Date": formatExportDate(lead.assignedAt),
     "Assigned Branch": lead.assignedBranchName || "",
     "Notes": lead.notes || "",
     "Form / Web Enquiry Notes": lead.formNotes || "",

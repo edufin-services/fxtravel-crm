@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
-import { getLeadsByOwner, getUserById } from "@/lib/db";
+import { getAllUsers, getLeadsByOwner, getUserById, type User } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import AgentKanbanClient from "./AgentKanbanClient";
 
@@ -9,7 +9,11 @@ export default async function AgentProfilePage({ params }: { params: Promise<{ i
   if (!session?.isAdmin) redirect("/login");
 
   const { id } = await params;
-  const [agent, leads] = await Promise.all([getUserById(id), getLeadsByOwner(id)]);
+  const [agent, leads, allUsers] = await Promise.all([
+    getUserById(id),
+    getLeadsByOwner(id),
+    getAllUsers(),
+  ]);
   if (!agent) notFound();
 
   return (
@@ -26,6 +30,14 @@ export default async function AgentProfilePage({ params }: { params: Promise<{ i
           leadPausedAt: agent.leadPausedAt || "",
         }}
         initialLeads={leads as any}
+        allAgents={allUsers.map((u) => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          company: u.company,
+          isLeadPaused: !!u.isLeadPaused,
+          leadPauseReason: u.leadPauseReason || "",
+        }))}
       />
     </Suspense>
   );

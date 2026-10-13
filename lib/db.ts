@@ -133,6 +133,12 @@ export type Lead = {
   deletedAt?: string | null;
   updatedAt?: string | null;
   confirmedAt?: string | null;
+  assignedAt?: string | null;
+  assignedByUserId?: string | null;
+  assignedByUserName?: string | null;
+  assignedFromUserId?: string | null;
+  assignedFromUserName?: string | null;
+  originalCreatedAt?: string | null;
 };
 
 export type Conversation = {
@@ -555,6 +561,21 @@ export async function getLeadsByOwner(ownerId: string): Promise<Lead[]> {
   return docs.map((d) => toPlain<Lead>(d));
 }
 
+export async function getAssignedLeadsByOwner(ownerId: string): Promise<Lead[]> {
+  await dbConnect();
+  const docs = await LeadModel.find({
+    ownerId,
+    deletedAt: null,
+    $or: [
+      { assignedAt: { $ne: null } },
+      { assignedByUserId: { $exists: true, $nin: [null, "", ownerId] } },
+      { assignedByUserName: { $exists: true, $nin: [null, ""] } },
+      { notes: { $regex: /imported via admin|assigned by|assigned to/i } },
+    ],
+  }).sort({ createdAt: -1 });
+  return docs.map((d) => toPlain<Lead>(d));
+}
+
 // ── Lead Activity Logging ──────────────────────────────────────────────────
 
 export async function logLeadActivity(
@@ -660,7 +681,8 @@ export async function updateLead(
     "city" | "state" | "neetStatus" | "preferredCountry" | "preferredUniversity1" | "preferredUniversity2" | "assignAgent" | "ownerId" |
     "assignedBranchId" | "assignedBranchName" |
     "firstPayment" | "secondPayment" | "thirdPaymentAmount" | "otcAmount" | "totalServiceCharge" |
-    "companyName" | "designation" | "yearlyVolume" | "rateOfferedCN" | "rateOfferedCard" | "rateOfferedTTDD" | "nextFollowUp" | "feedback" | "clientVisitStatus"
+    "companyName" | "designation" | "yearlyVolume" | "rateOfferedCN" | "rateOfferedCard" | "rateOfferedTTDD" | "nextFollowUp" | "feedback" | "clientVisitStatus" |
+    "assignedAt" | "assignedByUserId" | "assignedByUserName" | "assignedFromUserId" | "assignedFromUserName" | "originalCreatedAt"
   >>
 ): Promise<Lead | undefined> {
   await dbConnect();
@@ -673,11 +695,50 @@ export async function updateLead(
     setUpdates.confirmedAt = now;
   }
 
+  // When assigning/transferring lead to another agent:
+  // It comes at the top with the new assignment date!
+  let isAssignedToOther = false;
+  let targetUserName = "";
+  let assignerName = "";
+  if (updates.ownerId && prev && updates.ownerId !== prev.ownerId) {
+    isAssignedToOther = true;
+    setUpdates.createdAt = now; // Put at top with new date!
+    setUpdates.assignedAt = now;
+    if (!prev.originalCreatedAt) {
+      setUpdates.originalCreatedAt = prev.createdAt;
+    }
+    const assigner = await getUserById(ownerId);
+    assignerName = assigner ? assigner.name : "User";
+    setUpdates.assignedByUserId = ownerId;
+    setUpdates.assignedByUserName = assignerName;
+    setUpdates.assignedFromUserId = prev.ownerId;
+    setUpdates.assignedFromUserName = assignerName;
+
+    const targetUser = await getUserById(updates.ownerId);
+    if (targetUser) {
+      targetUserName = targetUser.name;
+      setUpdates.assignAgent = targetUser.name;
+    }
+  }
+
   const doc = await LeadModel.findOneAndUpdate({ id, ownerId }, { $set: setUpdates }, { returnDocument: "after" });
   if (!doc) return undefined;
   const updated = toPlain<Lead>(doc);
 
-  if (prev && updates.stage && updates.stage !== prev.stage) {
+  if (isAssignedToOther) {
+    logLeadActivity({
+      type: "lead_updated",
+      leadId: updated.id,
+      leadName: updated.name,
+      channel: updated.channel,
+      ownerId: updated.ownerId,
+      newStage: updated.stage,
+      value: updated.value,
+      phone: updated.phone,
+      email: updated.email,
+      details: `Lead assigned to ${targetUserName || updated.ownerId} by ${assignerName || "User"} in stage "${updated.stage}"`,
+    }).catch((err) => console.error("[audit] lead_assigned log error:", err));
+  } else if (prev && updates.stage && updates.stage !== prev.stage) {
     logLeadActivity({
       type: "stage_change",
       leadId: updated.id,
@@ -760,7 +821,8 @@ export async function updateLeadAdmin(
     "city" | "state" | "neetStatus" | "preferredCountry" | "preferredUniversity1" | "preferredUniversity2" | "assignAgent" |
     "assignedBranchId" | "assignedBranchName" |
     "firstPayment" | "secondPayment" | "thirdPaymentAmount" | "otcAmount" | "totalServiceCharge" |
-    "companyName" | "designation" | "yearlyVolume" | "rateOfferedCN" | "rateOfferedCard" | "rateOfferedTTDD" | "nextFollowUp" | "feedback" | "clientVisitStatus"
+    "companyName" | "designation" | "yearlyVolume" | "rateOfferedCN" | "rateOfferedCard" | "rateOfferedTTDD" | "nextFollowUp" | "feedback" | "clientVisitStatus" |
+    "assignedAt" | "assignedByUserId" | "assignedByUserName" | "assignedFromUserId" | "assignedFromUserName" | "originalCreatedAt"
   >>
 ): Promise<Lead | undefined> {
   await dbConnect();
@@ -773,11 +835,48 @@ export async function updateLeadAdmin(
     setUpdates.confirmedAt = now;
   }
 
+  // When admin assigns or reassigns lead to an agent:
+  // It comes at the top with the new assignment date!
+  let isAssignedToOther = false;
+  let targetUserName = "";
+  if (updates.ownerId && prev && updates.ownerId !== prev.ownerId && updates.ownerId !== "__admin__") {
+    isAssignedToOther = true;
+    setUpdates.createdAt = now; // Put at top with new date!
+    setUpdates.assignedAt = now;
+    if (!prev.originalCreatedAt) {
+      setUpdates.originalCreatedAt = prev.createdAt;
+    }
+    setUpdates.assignedByUserId = updates.assignedByUserId || "admin";
+    setUpdates.assignedByUserName = updates.assignedByUserName || "Admin";
+    setUpdates.assignedFromUserId = prev.ownerId || null;
+    const prevUser = prev.ownerId ? await getUserById(prev.ownerId) : null;
+    setUpdates.assignedFromUserName = prevUser ? prevUser.name : (prev.assignAgent || "Previous User");
+
+    const targetUser = await getUserById(updates.ownerId);
+    if (targetUser) {
+      targetUserName = targetUser.name;
+      setUpdates.assignAgent = targetUser.name;
+    }
+  }
+
   const doc = await LeadModel.findOneAndUpdate({ id }, { $set: setUpdates }, { returnDocument: "after" });
   if (!doc) return undefined;
   const updated = toPlain<Lead>(doc);
 
-  if (prev && updates.stage && updates.stage !== prev.stage) {
+  if (isAssignedToOther) {
+    logLeadActivity({
+      type: "lead_updated",
+      leadId: updated.id,
+      leadName: updated.name,
+      channel: updated.channel,
+      ownerId: updated.ownerId,
+      newStage: updated.stage,
+      value: updated.value,
+      phone: updated.phone,
+      email: updated.email,
+      details: `Admin assigned lead to ${targetUserName || updated.ownerId} in stage "${updated.stage}"`,
+    }).catch((err) => console.error("[audit] admin lead_assigned log error:", err));
+  } else if (prev && updates.stage && updates.stage !== prev.stage) {
     logLeadActivity({
       type: "stage_change",
       leadId: updated.id,
@@ -1498,6 +1597,7 @@ export async function assignImportedLead(
   // Create lead in CRM with initial stage
   const createdLead = await createLead({
     ownerId: userId,
+    assignAgent: userName,
     name: imp.name,
     phone: imp.phone,
     channel: (imp.channel as Channel) || "Facebook",
@@ -1505,6 +1605,10 @@ export async function assignImportedLead(
     value: 0,
     notes: `Imported via Admin XLS Upload · Platform: ${imp.platform || "N/A"}${imp.fileName ? ` · File: ${imp.fileName}` : ""}`,
     services: [],
+    assignedAt: now,
+    assignedByUserId: "admin",
+    assignedByUserName: "Admin",
+    assignedFromUserName: "Admin",
   });
 
   // Update ImportedLead record
@@ -1542,6 +1646,7 @@ export async function bulkAssignImportedLeads(
     const imp = toPlain<ImportedLead>(doc);
     const createdLead = await createLead({
       ownerId: userId,
+      assignAgent: userName,
       name: imp.name,
       phone: imp.phone,
       channel: (imp.channel as Channel) || "Facebook",
@@ -1549,6 +1654,10 @@ export async function bulkAssignImportedLeads(
       value: 0,
       notes: `Imported via Admin XLS Upload · Platform: ${imp.platform || "N/A"}${imp.fileName ? ` · File: ${imp.fileName}` : ""}`,
       services: [],
+      assignedAt: now,
+      assignedByUserId: "admin",
+      assignedByUserName: "Admin",
+      assignedFromUserName: "Admin",
     });
     leads.push(createdLead);
 

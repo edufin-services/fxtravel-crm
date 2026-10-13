@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CHANNELS, STAGES } from "@/lib/constants";
-import { createLead, getAllLeads, getLeadsByOwner } from "@/lib/db";
+import { createLead, getAllLeads, getLeadsByOwner, getUserById } from "@/lib/db";
 import { getSession } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
@@ -36,8 +36,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Please enter a valid agent, name, channel, stage, and 10-digit phone number." }, { status: 400 });
   }
 
+  const now = new Date().toISOString();
+  const targetUser = await getUserById(ownerId);
+
   const lead = await createLead({
     ownerId,
+    assignAgent: targetUser?.name || "Agent",
     name: name.trim(),
     channel,
     value: 0,
@@ -47,6 +51,10 @@ export async function POST(request: NextRequest) {
     notes: typeof notes === "string" ? notes : "",
     city: typeof city === "string" ? city.trim() : undefined,
     state: typeof state === "string" ? state.trim() : undefined,
+    assignedAt: now,
+    assignedByUserId: "admin",
+    assignedByUserName: "Admin",
+    assignedFromUserName: "Admin",
   });
 
   return NextResponse.json({ lead });

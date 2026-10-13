@@ -226,6 +226,41 @@ function SkeletonCard() {
   );
 }
 
+function getAssignerInfo(deal: Lead) {
+  const fromName = deal.assignedFromUserName?.trim();
+  const byName = deal.assignedByUserName?.trim();
+
+  if (fromName && fromName.toLowerCase() !== "admin") {
+    const viaAdmin = Boolean(byName && byName.toLowerCase() === "admin");
+    return {
+      sourceName: fromName,
+      viaAdmin,
+      isFromAdmin: false,
+      fullTooltip: `Assigned from ${fromName}${byName ? ` by ${byName}` : ""}`,
+    };
+  }
+
+  if (byName && byName.toLowerCase() !== "admin") {
+    return {
+      sourceName: byName,
+      viaAdmin: false,
+      isFromAdmin: false,
+      fullTooltip: `Assigned by ${byName}`,
+    };
+  }
+
+  if (deal.assignedAt || (byName && byName.toLowerCase() === "admin") || (fromName && fromName.toLowerCase() === "admin")) {
+    return {
+      sourceName: "Admin",
+      viaAdmin: false,
+      isFromAdmin: true,
+      fullTooltip: "Assigned by Admin",
+    };
+  }
+
+  return null;
+}
+
 // ── Main page content ──────────────────────────────────────────────────────────
 function LeadsPageContent() {
   const searchParams = useSearchParams();
@@ -994,6 +1029,55 @@ function LeadsPageContent() {
                           onDragEnd={() => { setDraggingId(null); setDragOverStage(null); }}
                           className={`group relative cursor-pointer rounded-2xl border p-3 transition-all duration-150 hover:-translate-y-0.5 active:cursor-grabbing select-none shadow-[0_1px_4px_rgba(0,0,0,0.05)] hover:shadow-md ${cardBg(deal.color)} ${draggingId === deal.id ? "opacity-30 scale-95" : ""}`}
                         >
+                          {/* Top Transfer Attribution Bar (if assigned) */}
+                          {(() => {
+                            const assignerInfo = getAssignerInfo(deal);
+                            if (!assignerInfo) return null;
+                            return (
+                              <div
+                                className={`flex items-center justify-between gap-1.5 pb-2 mb-2 border-b min-w-0 ${
+                                  isColored ? "border-white/20" : "border-zinc-100"
+                                }`}
+                              >
+                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                  <div
+                                    className={`flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full text-[9.5px] font-black uppercase ${
+                                      isColored
+                                        ? "bg-white/20 text-white"
+                                        : assignerInfo.isFromAdmin
+                                        ? "bg-rose-100 text-rose-700"
+                                        : "bg-indigo-100 text-indigo-700"
+                                    }`}
+                                    title={assignerInfo.fullTooltip}
+                                  >
+                                    {assignerInfo.sourceName.charAt(0) || "A"}
+                                  </div>
+                                  <div className="flex items-center gap-1 min-w-0 overflow-hidden">
+                                    <span className={`text-[10px] font-medium shrink-0 ${isColored ? "text-white/70" : "text-zinc-400"}`}>
+                                      From
+                                    </span>
+                                    <span
+                                      className={`text-[10.5px] font-bold truncate ${isColored ? "text-white" : "text-zinc-800"}`}
+                                      title={assignerInfo.fullTooltip}
+                                    >
+                                      {assignerInfo.sourceName}
+                                    </span>
+                                    {assignerInfo.viaAdmin && (
+                                      <span
+                                        className={`shrink-0 rounded px-1 py-0.2 text-[8px] font-bold uppercase tracking-tight ${
+                                          isColored ? "bg-white/20 text-white" : "bg-zinc-100 text-zinc-500 border border-zinc-200/80"
+                                        }`}
+                                        title="Assigned via Administrator"
+                                      >
+                                        Admin
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+
                           {/* Row 1: Lead Name + Relative Time + Delete */}
                           <div className="flex items-start justify-between gap-1.5">
                             <div className="min-w-0 flex-1">

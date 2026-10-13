@@ -158,7 +158,7 @@ export default function AdminAgentsPage() {
   }
 
   return (
-    <div className="space-y-5 max-w-5xl">
+    <div className="space-y-5 max-w-6xl">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -169,7 +169,7 @@ export default function AdminAgentsPage() {
         </div>
         <button
           onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-600/20 hover:from-emerald-500 hover:to-emerald-400 active:scale-95 transition-all"
+          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-600/20 hover:from-emerald-500 hover:to-emerald-400 active:scale-95 transition-all cursor-pointer"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d="M12 5v14M5 12h14" strokeLinecap="round"/>
@@ -180,7 +180,7 @@ export default function AdminAgentsPage() {
 
       {/* Search and Filters */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 shadow-xs w-full max-w-sm">
+        <div className="flex items-center gap-2.5 rounded-xl border border-zinc-200/90 bg-white px-3.5 py-2.5 shadow-2xs w-full max-w-sm focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-100 transition-all">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-400 flex-none">
             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35" strokeLinecap="round"/>
           </svg>
@@ -189,7 +189,7 @@ export default function AdminAgentsPage() {
             placeholder="Search users by name, email, or branch..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full bg-transparent text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none"
+            className="w-full bg-transparent text-sm text-zinc-800 placeholder:text-zinc-400 focus:outline-none"
           />
         </div>
 
@@ -227,7 +227,7 @@ export default function AdminAgentsPage() {
       {/* Table card */}
       <div className="rounded-2xl border border-zinc-200/80 bg-white overflow-hidden shadow-xs">
         {/* Header row */}
-        <div className="grid grid-cols-[1.8fr_1.3fr_1.3fr_1fr_250px] gap-4 px-5 py-3 bg-zinc-50/80 border-b border-zinc-100 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
+        <div className="grid grid-cols-[1.8fr_1.3fr_1.5fr_1fr_260px] gap-4 px-5 py-3 bg-zinc-50/80 border-b border-zinc-100 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
           <span>User</span>
           <span>Company &amp; Branch</span>
           <span>Lead Directing</span>
@@ -237,7 +237,7 @@ export default function AdminAgentsPage() {
 
         {/* Skeleton rows */}
         {loading && [...Array(4)].map((_, i) => (
-          <div key={i} className="grid grid-cols-[1.8fr_1.3fr_1.3fr_1fr_250px] gap-4 px-5 py-4 border-b border-zinc-50 animate-pulse">
+          <div key={i} className="grid grid-cols-[1.8fr_1.3fr_1.5fr_1fr_260px] gap-4 px-5 py-4 border-b border-zinc-50 animate-pulse">
             <div className="flex items-center gap-3">
               <div className="h-9 w-9 rounded-full bg-zinc-200 flex-none" />
               <div className="space-y-1.5">
@@ -264,7 +264,7 @@ export default function AdminAgentsPage() {
               {agents.length === 0 ? "No users yet" : "No users match your criteria"}
             </p>
             {agents.length === 0 && (
-              <button onClick={() => setShowModal(true)} className="mt-3 text-xs font-semibold text-emerald-600 hover:text-emerald-700">
+              <button onClick={() => setShowModal(true)} className="mt-3 text-xs font-semibold text-emerald-600 hover:text-emerald-700 cursor-pointer">
                 + Create first user
               </button>
             )}
@@ -277,20 +277,20 @@ export default function AdminAgentsPage() {
           return (
             <div
               key={agent.id}
-              className="grid grid-cols-[1.8fr_1.3fr_1.3fr_1fr_250px] gap-4 px-5 py-3.5 items-center hover:bg-zinc-50/60 transition-colors group"
+              className="grid grid-cols-[1.8fr_1.3fr_1.5fr_1fr_260px] gap-4 px-5 py-3.5 items-center hover:bg-zinc-50/60 transition-colors group"
               style={{ borderBottom: idx < filteredAgents.length - 1 ? "1px solid #f4f4f5" : "none" }}
             >
-              <Link href={`/admin/agents/${agent.id}`} className="flex items-center gap-3">
+              <Link href={`/admin/agents/${agent.id}`} className="flex items-center gap-3 min-w-0">
                 <div className={`flex h-9 w-9 flex-none items-center justify-center rounded-full bg-gradient-to-br ${grad(agent.name)} text-[10px] font-bold text-white shadow-sm`}>
                   {initials(agent.name)}
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-zinc-900 group-hover:text-emerald-600 transition-colors leading-tight">{agent.name}</p>
-                  <p className="text-xs text-zinc-400">{agent.email}</p>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-zinc-900 group-hover:text-emerald-600 transition-colors leading-tight truncate">{agent.name}</p>
+                  <p className="text-xs text-zinc-400 truncate">{agent.email}</p>
                 </div>
               </Link>
               <div>
-                <p className="text-sm text-zinc-700 font-medium">{agent.company || "—"}</p>
+                <p className="text-sm text-zinc-700 font-medium truncate">{agent.company || "—"}</p>
                 <div className="mt-0.5">
                   <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
                     isKolkata
@@ -304,24 +304,27 @@ export default function AdminAgentsPage() {
               </div>
 
               {/* Lead Directing Status Badge */}
-              <div>
+              <div className="flex items-center gap-1.5 flex-wrap">
                 {agent.isLeadPaused ? (
-                  <div>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-50 text-amber-800 border border-amber-200/90 shadow-2xs">
-                      <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor">
+                  <>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200/90 shadow-2xs whitespace-nowrap">
+                      <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor">
                         <rect x="6" y="4" width="4" height="16" rx="1" />
                         <rect x="14" y="4" width="4" height="16" rx="1" />
                       </svg>
                       Directing Paused
                     </span>
                     {agent.leadPauseReason && (
-                      <p className="text-[10px] text-zinc-400 mt-0.5 font-medium truncate max-w-[150px]" title={agent.leadPauseReason}>
+                      <span
+                        className="inline-flex items-center rounded-md bg-zinc-100 text-zinc-600 px-2 py-0.5 text-[10.5px] font-medium border border-zinc-200/70 truncate max-w-[130px]"
+                        title={`Pause Reason: ${agent.leadPauseReason}`}
+                      >
                         {agent.leadPauseReason}
-                      </p>
+                      </span>
                     )}
-                  </div>
+                  </>
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200/90 shadow-2xs">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/90 shadow-2xs whitespace-nowrap">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     Receiving Leads
                   </span>
@@ -333,17 +336,17 @@ export default function AdminAgentsPage() {
               </p>
 
               {/* Action Buttons */}
-              <div className="flex items-center gap-1.5 justify-end">
+              <div className="flex items-center gap-1.5 justify-end whitespace-nowrap">
                 {agent.isLeadPaused ? (
                   <button
                     onClick={() => handleResume(agent)}
-                    className="rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100 hover:border-emerald-400 transition-all inline-flex items-center gap-1 shadow-2xs cursor-pointer"
+                    className="rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 hover:border-emerald-400 transition-all inline-flex items-center gap-1.5 shadow-2xs cursor-pointer whitespace-nowrap shrink-0 active:scale-95"
                     title="Resume directing incoming leads to this user"
                   >
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor">
                       <polygon points="5 3 19 12 5 21 5 3" />
                     </svg>
-                    Resume
+                    <span>Resume</span>
                   </button>
                 ) : (
                   <button
@@ -351,32 +354,35 @@ export default function AdminAgentsPage() {
                       setPauseTarget(agent);
                       setPauseReason("On Leave");
                     }}
-                    className="rounded-lg border border-amber-200 bg-amber-50/70 px-2.5 py-1 text-xs font-bold text-amber-800 hover:bg-amber-100 hover:border-amber-300 transition-all inline-flex items-center gap-1 shadow-2xs cursor-pointer"
+                    className="rounded-lg border border-amber-200/90 bg-amber-50/80 px-2.5 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100 hover:border-amber-300 transition-all inline-flex items-center gap-1.5 shadow-2xs cursor-pointer whitespace-nowrap shrink-0 active:scale-95"
                     title="Pause directing leads to this user"
                   >
-                    <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor">
+                    <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor">
                       <rect x="6" y="4" width="4" height="16" rx="1" />
                       <rect x="14" y="4" width="4" height="16" rx="1" />
                     </svg>
-                    Pause Leads
+                    <span>Pause</span>
                   </button>
                 )}
 
                 <Link
                   href={`/admin/agents/${agent.id}`}
-                  className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-semibold text-zinc-600 hover:border-emerald-200 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                  className="rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50 transition-all shadow-2xs shrink-0 whitespace-nowrap"
+                  title="View user board"
                 >
                   View
                 </Link>
                 <button
                   onClick={() => setEditAgent(agent)}
-                  className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-semibold text-zinc-600 hover:border-emerald-200 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                  className="rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50 transition-all shadow-2xs cursor-pointer shrink-0 whitespace-nowrap"
+                  title="Edit user details"
                 >
                   Edit
                 </button>
                 <button
                   onClick={() => { setDeleteId(agent.id); setDeleteName(agent.name); }}
-                  className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-semibold text-zinc-600 hover:border-red-200 hover:text-red-500 hover:bg-red-50 transition-colors"
+                  className="rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-700 hover:border-rose-200 hover:text-rose-600 hover:bg-rose-50 transition-all shadow-2xs cursor-pointer shrink-0 whitespace-nowrap"
+                  title="Delete user"
                 >
                   Delete
                 </button>

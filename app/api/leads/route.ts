@@ -1,17 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CHANNELS, STAGES } from "@/lib/constants";
-import { createLead, getAllLeads, getLeadsByOwner } from "@/lib/db";
+import { createLead, getAllLeads, getAssignedLeadsByOwner, getLeadsByOwner } from "@/lib/db";
 import { getSession } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
   const session = await getSession();
   if (!session?.userId && !session?.isAdmin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let leads = session.isAdmin ? await getAllLeads() : await getLeadsByOwner(session.userId!);
+  const url = new URL(request.url);
+  const isAssigned = url.searchParams.get("assigned") === "true";
 
-  const q = new URL(request.url).searchParams.get("q")?.trim().toLowerCase();
+  let leads = session.isAdmin
+    ? await getAllLeads()
+    : isAssigned
+    ? await getAssignedLeadsByOwner(session.userId!)
+    : await getLeadsByOwner(session.userId!);
+
+  const q = url.searchParams.get("q")?.trim().toLowerCase();
   if (q) {
-    leads = leads.filter((l) => l.name.toLowerCase().includes(q));
+    leads = leads.filter((l) => l.name.toLowerCase().includes(q) || (l.phone && l.phone.includes(q)));
   }
 
   return NextResponse.json({ leads });

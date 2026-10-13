@@ -12,11 +12,13 @@ import {
   ListIcon,
   MailIcon,
   TrashIcon,
+  UserCheckIcon,
 } from "./icons";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: <GridIcon /> },
   { href: "/dashboard/leads", label: "Leads", icon: <FunnelIcon /> },
+  { href: "/dashboard/assigned-leads", label: "Assigned Leads", icon: <UserCheckIcon /> },
   { href: "/dashboard/chats", label: "Chats", icon: <ChatIcon /> },
   { href: "/dashboard/calendar", label: "Calendar", icon: <CalendarIcon /> },
   { href: "/dashboard/lists", label: "Lists", icon: <ListIcon /> },

@@ -108,10 +108,17 @@ const LeadSchema = new Schema({
   deletedAt: { type: String, default: null, index: true },
   updatedAt: { type: String, default: null, index: true },
   confirmedAt: { type: String, default: null, index: true },
+  assignedAt: { type: String, default: null, index: true },
+  assignedByUserId: { type: String, default: null },
+  assignedByUserName: { type: String, default: null },
+  assignedFromUserId: { type: String, default: null },
+  assignedFromUserName: { type: String, default: null },
+  originalCreatedAt: { type: String, default: null },
 });
 
 LeadSchema.index({ createdAt: -1 });
 LeadSchema.index({ ownerId: 1, createdAt: -1 });
+LeadSchema.index({ ownerId: 1, assignedAt: -1 });
 LeadSchema.index({ confirmedAt: -1 });
 LeadSchema.index({ updatedAt: -1 });
 

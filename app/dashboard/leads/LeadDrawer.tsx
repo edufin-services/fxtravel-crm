@@ -37,6 +37,11 @@ export type DrawerLead = {
   preferredUniversity1?: string;
   preferredUniversity2?: string;
   assignAgent?: string;
+  assignedAt?: string | null;
+  assignedByUserId?: string | null;
+  assignedByUserName?: string | null;
+  assignedFromUserId?: string | null;
+  assignedFromUserName?: string | null;
   firstPayment?: number;
   secondPayment?: number;
   thirdPaymentAmount?: number;
@@ -117,6 +122,20 @@ function getGradient(name: string) {
   const f = name[0]?.toUpperCase() ?? "A";
   return avatarGradient[f] ?? "from-zinc-400 to-zinc-600";
 }
+
+const STAGE_LABELS: Record<Stage, string> = {
+  Initial: "Initial",
+  Connected: "Connected",
+  Confirmed: "Confirmed (Won)",
+  Closed: "Closed (Lost)",
+};
+
+const stageMeta: Record<Stage, { dot: string; label: string; desc: string }> = {
+  Initial: { dot: "bg-blue-500", label: "Initial", desc: "Fresh enquiry / uncontacted" },
+  Connected: { dot: "bg-amber-500", label: "Connected", desc: "Contacted / actively engaged" },
+  Confirmed: { dot: "bg-emerald-500", label: "Confirmed", desc: "Won / Deal finalized" },
+  Closed: { dot: "bg-red-500", label: "Closed", desc: "Closed / Lost enquiry" },
+};
 
 // ── Inline field row ──────────────────────────────────────────────────────────
 
@@ -513,6 +532,8 @@ export default function LeadDrawer({
   const [showStageConfirm, setShowStageConfirm] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [reminderAt, setReminderAt] = useState<string | undefined>(lead.reminderAt);
+  const [assignStageModalTarget, setAssignStageModalTarget] = useState<{ memberId: string; memberName: string } | null>(null);
+  const [pendingAssignStage, setPendingAssignStage] = useState<Stage>("Initial");
 
   // Refs
   const contentScrollRef = useRef<HTMLDivElement>(null);
@@ -1094,25 +1115,81 @@ export default function LeadDrawer({
                   </svg>
                 }
               >
-                <select
-                  value={assignAgentId}
-                  onChange={(e) => setAssignAgentId(e.target.value)}
-                  className={selectCls}
-                >
-                  <option value="">Unassigned</option>
-                  {teamMembers.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name} {m.id === currentUserId && currentUserId !== "__admin__" ? "(You)" : ""} {m.isLeadPaused ? `(Paused${m.leadPauseReason ? `: ${m.leadPauseReason}` : ""})` : ""}
-                    </option>
-                  ))}
-                  {!teamMembers.length && currentUserId && currentUserId !== "__admin__" && (
-                    <option value={currentUserId}>{currentUserName} (You)</option>
+                <div className="space-y-1.5">
+                  <select
+                    value={assignAgentId}
+                    onChange={(e) => {
+                      setAssignAgentId(e.target.value);
+                    }}
+                    className={selectCls}
+                  >
+                    <option value="">Unassigned</option>
+                    {teamMembers.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} {m.id === currentUserId && currentUserId !== "__admin__" ? "(You)" : ""} {m.isLeadPaused ? `(Paused${m.leadPauseReason ? `: ${m.leadPauseReason}` : ""})` : ""}
+                      </option>
+                    ))}
+                    {!teamMembers.length && currentUserId && currentUserId !== "__admin__" && (
+                      <option value={currentUserId}>{currentUserName} (You)</option>
+                    )}
+                    {!teamMembers.length && !currentUserId && (
+                      <option value="">Loading...</option>
+                    )}
+                  </select>
+
+                  {assignAgentId && assignAgentId !== lead.ownerId && (
+                    <div className="flex items-center justify-between rounded-lg bg-blue-50/90 border border-blue-200/70 px-2.5 py-1 text-[11px] text-blue-700">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse shrink-0" />
+                        <span className="truncate">
+                          Assigning to <strong>{teamMembers.find((m) => m.id === assignAgentId)?.name || "Agent"}</strong> in <strong>{stage}</strong> stage
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const member = teamMembers.find((m) => m.id === assignAgentId);
+                          setAssignStageModalTarget({
+                            memberId: assignAgentId,
+                            memberName: member ? member.name : "Selected Agent",
+                          });
+                          setPendingAssignStage(stage);
+                        }}
+                        className="text-[10px] font-bold text-blue-600 hover:text-blue-800 underline shrink-0 ml-1.5"
+                      >
+                        Change stage
+                      </button>
+                    </div>
                   )}
-                  {!teamMembers.length && !currentUserId && (
-                    <option value="">Loading...</option>
-                  )}
-                </select>
+                </div>
               </FieldRow>
+
+              {(lead.assignedFromUserName || lead.assignedByUserName) && (
+                <FieldRow
+                  label="Assigned From"
+                  icon={
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-400">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+                    </svg>
+                  }
+                >
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="inline-flex items-center gap-1 rounded-lg bg-zinc-100 border border-zinc-200 px-2 py-0.5 text-xs font-bold text-zinc-800">
+                      From: {lead.assignedFromUserName || lead.assignedByUserName}
+                    </span>
+                    {lead.assignedByUserName && lead.assignedByUserName !== lead.assignedFromUserName && (
+                      <span className="text-[11px] font-semibold text-zinc-500">
+                        (by {lead.assignedByUserName})
+                      </span>
+                    )}
+                    {lead.assignedAt && (
+                      <span className="text-[10px] text-zinc-400">
+                        · {formatRelativeTime(lead.assignedAt)}
+                      </span>
+                    )}
+                  </div>
+                </FieldRow>
+              )}
 
               <FieldRow
                 label="Stage"
@@ -1599,6 +1676,132 @@ export default function LeadDrawer({
                   }`}
                 >
                   {loading ? "Moving..." : stage === "Confirmed" ? "Confirm Deal" : "Confirm"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Assign Stage Selection Modal ────────────────────────────── */}
+        {assignStageModalTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+            <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl ring-1 ring-zinc-200/80 overflow-hidden animate-fadeIn">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 bg-zinc-50/60">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 border border-blue-200/60">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" strokeLinecap="round" strokeLinejoin="round" />
+                      <circle cx="9" cy="7" r="4" />
+                      <polyline points="16 11 18 13 22 9" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-zinc-900">Assign Lead</h3>
+                    <p className="text-[11px] text-zinc-500">
+                      Assigning to <span className="font-semibold text-zinc-800">{assignStageModalTarget.memberName}</span>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAssignStageModalTarget(null)}
+                  className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-200/60 hover:text-zinc-600 transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="18" y1="6" x2="6" y2="18" strokeLinecap="round" />
+                    <line x1="6" y1="6" x2="18" y2="18" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                    Select Stage For This Lead
+                  </label>
+                  <p className="text-xs text-zinc-500 mb-3">
+                    Which stage do you want to send this lead in? (Initial is default):
+                  </p>
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {STAGES.map((s) => {
+                      const isSelected = pendingAssignStage === s;
+                      const meta = stageMeta[s] ?? { dot: "bg-zinc-400", label: s, desc: "" };
+                      return (
+                        <div
+                          key={s}
+                          onClick={() => setPendingAssignStage(s)}
+                          className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
+                            isSelected
+                              ? "bg-blue-50/70 border-blue-500 ring-2 ring-blue-100 shadow-2xs"
+                              : "bg-white border-zinc-200 hover:bg-zinc-50/80 hover:border-zinc-300"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className={`h-2.5 w-2.5 rounded-full ${meta.dot} shrink-0`} />
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-zinc-900">{STAGE_LABELS[s] || s}</span>
+                                {s === "Initial" && (
+                                  <span className="rounded-full bg-blue-100 text-blue-700 px-2 py-0.5 text-[9px] font-extrabold uppercase">
+                                    Default
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-zinc-500 mt-0.5">{meta.desc}</p>
+                            </div>
+                          </div>
+                          <div
+                            className={`h-4 w-4 rounded-full border flex items-center justify-center transition-all ${
+                              isSelected
+                                ? "border-blue-600 bg-blue-600 text-white"
+                                : "border-zinc-300 bg-white"
+                            }`}
+                          >
+                            {isSelected && (
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="rounded-xl bg-amber-50 border border-amber-200/80 p-3 text-[11px] text-amber-800 flex items-start gap-2">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 mt-0.5 text-amber-600">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  <span>
+                    When saved, this lead will appear at the top of <strong>{assignStageModalTarget.memberName}</strong>'s Assigned Leads with today's date.
+                  </span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2.5 px-6 pb-5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setAssignStageModalTarget(null)}
+                  className="flex-1 rounded-xl border border-zinc-200 py-2.5 text-xs font-semibold text-zinc-600 hover:bg-zinc-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssignAgentId(assignStageModalTarget.memberId);
+                    setStage(pendingAssignStage);
+                    setAssignStageModalTarget(null);
+                  }}
+                  className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 py-2.5 text-xs font-bold text-white shadow-sm shadow-emerald-600/20 active:scale-95 transition-all"
+                >
+                  Confirm &amp; Set to {STAGE_LABELS[pendingAssignStage] || pendingAssignStage}
                 </button>
               </div>
             </div>

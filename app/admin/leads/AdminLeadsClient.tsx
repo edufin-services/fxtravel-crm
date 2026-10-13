@@ -468,6 +468,87 @@ export default function AdminLeadsClient({
 
   const totalValue = leads.reduce((s, l) => s + (l.value ?? 0), 0);
   const filteredTotalValue = filteredLeads.reduce((s, l) => s + (l.value ?? 0), 0);
+
+  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
+  const [bulkAssignTargetUser, setBulkAssignTargetUser] = useState<string>("");
+  const [bulkAssignStage, setBulkAssignStage] = useState<string>("");
+  const [isBulkAssigning, setIsBulkAssigning] = useState<boolean>(false);
+  const [bulkAssignConfirmOpen, setBulkAssignConfirmOpen] = useState<boolean>(false);
+  const [bulkAssignSuccessMsg, setBulkAssignSuccessMsg] = useState<string>("");
+
+  const toggleSelectAll = () => {
+    if (selectedLeadIds.size === filteredLeads.length && filteredLeads.length > 0) {
+      setSelectedLeadIds(new Set());
+    } else {
+      setSelectedLeadIds(new Set(filteredLeads.map((l) => l.id)));
+    }
+  };
+
+  const toggleSelectLead = (id: string) => {
+    setSelectedLeadIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedLeadIds(new Set());
+  };
+
+  async function handleBulkAssign() {
+    if (!bulkAssignTargetUser || selectedLeadIds.size === 0) return;
+    setIsBulkAssigning(true);
+    try {
+      const res = await fetch("/api/admin/leads/bulk-assign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          leadIds: Array.from(selectedLeadIds),
+          targetUserId: bulkAssignTargetUser,
+          stage: bulkAssignStage || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Failed to assign leads");
+        return;
+      }
+
+      const targetUser = agents.find((a) => a.id === bulkAssignTargetUser);
+      const targetName = targetUser?.name || data.targetUserName || "selected user";
+
+      setLeads((prev) =>
+        prev.map((l) => {
+          if (selectedLeadIds.has(l.id)) {
+            return {
+              ...l,
+              ownerId: bulkAssignTargetUser,
+              assignAgent: targetName,
+              ...(bulkAssignStage ? { stage: bulkAssignStage as Stage } : {}),
+            };
+          }
+          return l;
+        })
+      );
+
+      const count = data.count || selectedLeadIds.size;
+      setBulkAssignSuccessMsg(`Successfully assigned ${count} ${count === 1 ? "lead" : "leads"} to ${targetName}`);
+      setTimeout(() => setBulkAssignSuccessMsg(""), 5000);
+      setSelectedLeadIds(new Set());
+      setBulkAssignTargetUser("");
+      setBulkAssignStage("");
+      setBulkAssignConfirmOpen(false);
+    } catch (e: any) {
+      alert(e.message || "An error occurred");
+    } finally {
+      setIsBulkAssigning(false);
+    }
+  }
   const confirmedCount = leads.filter((l) => l.stage === "Confirmed").length;
   const isFiltered =
     Boolean(query.trim()) ||
@@ -960,6 +1041,22 @@ export default function AdminLeadsClient({
             </>
           )}
         </div>
+
+        {selectedLeadIds.size > 0 && (
+          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 rounded-xl text-xs font-bold text-emerald-800 animate-fadeIn shadow-2xs">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-[10px] font-black">
+              {selectedLeadIds.size}
+            </span>
+            <span>Leads Selected</span>
+            <button
+              type="button"
+              onClick={clearSelection}
+              className="text-[11px] text-emerald-700 hover:text-emerald-950 underline ml-1 cursor-pointer font-semibold"
+            >
+              Clear
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── KANBAN VIEW: 4 equal columns fitting 100% within screen width without getting cut off ── */}
@@ -1025,6 +1122,7 @@ export default function AdminLeadsClient({
                       const filtered = rawList.filter((s) => Boolean(s) && s !== "Tours & Packages");
                       const displayServices = filtered.length > 0 ? filtered : rawList.includes("Tours & Packages") ? ["Domestic Tours"] : [];
 
+                      const isSelected = selectedLeadIds.has(deal.id);
                       return (
                         <div
                           key={deal.id}
@@ -1033,12 +1131,21 @@ export default function AdminLeadsClient({
                           onDragEnd={() => { setDraggingId(null); setDragOverStage(null); }}
                           onClick={() => setEditingLead(deal)}
                           className={`group relative cursor-pointer rounded-2xl border p-3 transition-all duration-150 hover:-translate-y-0.5 active:cursor-grabbing select-none shadow-[0_1px_4px_rgba(0,0,0,0.05)] hover:shadow-md ${cardBg(deal.color)} ${
+                            isSelected ? "ring-2 ring-emerald-500 shadow-md border-emerald-400" : ""
+                          } ${
                             draggingId === deal.id ? "opacity-30 scale-95" : ""
                           }`}
                         >
                           {/* Row 1: Name + Relative time + Delete */}
                           <div className="flex items-start justify-between gap-1.5">
-                            <div className="min-w-0 flex-1">
+                            <div className="min-w-0 flex-1 flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onClick={(e) => e.stopPropagation()}
+                                onChange={() => toggleSelectLead(deal.id)}
+                                className="h-4 w-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0"
+                              />
                               <p className={`truncate text-[13px] font-bold leading-snug ${isColored ? "text-white" : "text-zinc-900 group-hover:text-emerald-700 transition-colors"}`}>
                                 {deal.name}
                               </p>
@@ -1221,6 +1328,20 @@ export default function AdminLeadsClient({
             <table className="w-full text-sm text-left">
               <thead>
                 <tr className="border-b border-zinc-100 bg-zinc-50/80 text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                  <th className="w-10 px-4 py-3.5 text-center">
+                    <input
+                      type="checkbox"
+                      checked={filteredLeads.length > 0 && selectedLeadIds.size === filteredLeads.length}
+                      ref={(el) => {
+                        if (el) {
+                          el.indeterminate = selectedLeadIds.size > 0 && selectedLeadIds.size < filteredLeads.length;
+                        }
+                      }}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                      title="Select all"
+                    />
+                  </th>
                   <th className="px-5 py-3.5">Lead Name</th>
                   <th className="px-5 py-3.5">Services</th>
                   <th className="px-5 py-3.5">Stage</th>
@@ -1243,7 +1364,7 @@ export default function AdminLeadsClient({
               <tbody className="divide-y divide-zinc-100">
                 {filteredLeads.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-16 text-center text-sm text-zinc-400">
+                    <td colSpan={7} className="px-5 py-16 text-center text-sm text-zinc-400">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <div className="h-10 w-10 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-400">
                           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35" strokeLinecap="round"/></svg>
@@ -1254,12 +1375,34 @@ export default function AdminLeadsClient({
                     </td>
                   </tr>
                 ) : (
-                  filteredLeads.map((deal) => (
+                  filteredLeads.map((deal) => {
+                    const isSelected = selectedLeadIds.has(deal.id);
+                    return (
                     <tr
                       key={deal.id}
                       onClick={() => setEditingLead(deal)}
-                      className={`transition-colors cursor-pointer group ${tableRowBg(deal.color)}`}
+                      className={`transition-colors cursor-pointer group ${
+                        isSelected
+                          ? "bg-emerald-50/80 hover:bg-emerald-100/70 border-l-4 border-l-emerald-600"
+                          : tableRowBg(deal.color)
+                      }`}
                     >
+                      {/* Checkbox column */}
+                      <td
+                        className="w-10 px-4 py-3.5 text-center"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSelectLead(deal.id);
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {}}
+                          className="h-4 w-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        />
+                      </td>
+
                       {/* Lead Name with avatar and contact number right below name */}
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
@@ -1426,7 +1569,8 @@ export default function AdminLeadsClient({
                         {formatRelativeTime(deal.createdAt)}
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -1507,6 +1651,170 @@ export default function AdminLeadsClient({
           onClose={() => setModalStage(null)}
           onSubmit={handleAddDeal}
         />
+      )}
+
+      {/* ── Floating Bulk Action Bar ────────────────────────────────────── */}
+      {selectedLeadIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-[94%] max-w-3xl">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-zinc-900/95 text-white px-5 py-3.5 shadow-2xl backdrop-blur-md border border-zinc-700/60 ring-1 ring-white/10 animate-in fade-in slide-in-from-bottom-4">
+            <div className="flex items-center gap-3">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 text-white text-xs font-black shadow-sm">
+                {selectedLeadIds.size}
+              </span>
+              <div>
+                <p className="text-xs font-bold text-white leading-tight">
+                  {selectedLeadIds.size} {selectedLeadIds.size === 1 ? "lead" : "leads"} selected
+                </p>
+                <div className="flex items-center gap-2 text-[11px] text-zinc-400 mt-0.5">
+                  {selectedLeadIds.size < filteredLeads.length && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedLeadIds(new Set(filteredLeads.map((l) => l.id)))}
+                      className="hover:text-emerald-400 underline font-semibold cursor-pointer"
+                    >
+                      Select all {filteredLeads.length}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={clearSelection}
+                    className="hover:text-zinc-200 cursor-pointer"
+                  >
+                    Clear selection
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 flex-wrap">
+              {/* Target User select */}
+              <div className="relative">
+                <select
+                  value={bulkAssignTargetUser}
+                  onChange={(e) => setBulkAssignTargetUser(e.target.value)}
+                  className="rounded-xl bg-zinc-800 text-white text-xs font-semibold px-3 py-2 pr-7 border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                >
+                  <option value="">Assign to user...</option>
+                  {agents.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Target Stage select (optional) */}
+              <select
+                value={bulkAssignStage}
+                onChange={(e) => setBulkAssignStage(e.target.value)}
+                className="rounded-xl bg-zinc-800 text-white text-xs font-semibold px-3 py-2 pr-7 border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+              >
+                <option value="">Keep current stage</option>
+                {STAGES.map((s) => (
+                  <option key={s} value={s}>
+                    Set stage: {s}
+                  </option>
+                ))}
+              </select>
+
+              {/* Assign button */}
+              <button
+                type="button"
+                onClick={() => setBulkAssignConfirmOpen(true)}
+                disabled={!bulkAssignTargetUser || isBulkAssigning}
+                className="rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs px-4 py-2 transition-all flex items-center gap-1.5 shadow-md shadow-emerald-500/20 active:scale-95 cursor-pointer"
+              >
+                {isBulkAssigning ? (
+                  <span className="flex items-center gap-1.5">
+                    <svg className="animate-spin h-3.5 w-3.5 text-white" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                    Assigning...
+                  </span>
+                ) : (
+                  <>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/>
+                    </svg>
+                    <span>Assign Leads</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Bulk Assign Confirmation Modal ───────────────────────────────── */}
+      {bulkAssignConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl ring-1 ring-zinc-200/80 p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/>
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-zinc-900">Confirm Bulk Lead Assignment</h3>
+                <p className="text-xs text-zinc-500">
+                  Assigning {selectedLeadIds.size} leads
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-zinc-50 border border-zinc-200/80 p-3.5 text-xs text-zinc-700 space-y-2">
+              <p>
+                You are about to reassign <strong>{selectedLeadIds.size} {selectedLeadIds.size === 1 ? "lead" : "leads"}</strong> to{" "}
+                <span className="font-extrabold text-zinc-900">
+                  {agents.find((a) => a.id === bulkAssignTargetUser)?.name || "selected user"}
+                </span>
+                .
+              </p>
+              {bulkAssignStage ? (
+                <p className="text-emerald-700 font-semibold">
+                  Stage will be updated to: <strong>{bulkAssignStage}</strong>
+                </p>
+              ) : (
+                <p className="text-zinc-500">
+                  Current stages will be preserved.
+                </p>
+              )}
+              <p className="text-[11px] text-zinc-500">
+                These leads will appear at the top of the assigned user&apos;s pipeline with today&apos;s date.
+              </p>
+            </div>
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setBulkAssignConfirmOpen(false)}
+                className="flex-1 rounded-xl border border-zinc-200 py-2.5 text-xs font-semibold text-zinc-600 hover:bg-zinc-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkAssign}
+                disabled={isBulkAssigning}
+                className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 text-xs font-bold shadow-md shadow-emerald-600/20 active:scale-95 cursor-pointer"
+              >
+                {isBulkAssigning ? "Assigning..." : `Confirm & Assign (${selectedLeadIds.size})`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Success Toast ─────────────────────────────────────────────────── */}
+      {bulkAssignSuccessMsg && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 rounded-xl bg-emerald-600 text-white px-4 py-3 shadow-xl animate-in slide-in-from-top-4">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          <span className="text-xs font-bold">{bulkAssignSuccessMsg}</span>
+        </div>
       )}
     </div>
   );

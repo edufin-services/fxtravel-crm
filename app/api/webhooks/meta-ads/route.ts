@@ -260,54 +260,91 @@ export async function POST(request: NextRequest) {
         }
 
         // ── Executive Campaign Assignment ────────────────────────────────────
-        // Rule: Kolkata Campaign / City / Form -> Mouparna Banerjee
-        // Rule: Delhi NCR Campaign / City / Form -> Sheeba Birla
-        // Fallback: Round-Robin across registered active executives
-        const routingHaystack = [
-          campaignName,
-          adsetName,
-          adName,
-          leadCity,
-          formId,
-          ...extraFormFields,
-        ].join(" ").toLowerCase();
+        // Ad Campaigns: "Delhi NCR leads" and "Kolkata" (each has Domestic & International sub-campaigns)
+        // Rule: Leads from Delhi NCR campaign / location -> Delhi NCR Branch (Sheeba Birla & team)
+        // Rule: Leads from Kolkata campaign / location -> Kolkata Branch (Mouparna Banerjee & team)
+        // Sub-campaign ("Domestic" vs "International") dictates the service type, NOT the branch.
+        const lowerCampaign = (campaignName || "").toLowerCase().trim();
+        const lowerAdset = (adsetName || "").toLowerCase().trim();
+        const lowerAd = (adName || "").toLowerCase().trim();
+        const lowerCity = (leadCity || "").toLowerCase().trim();
+        const lowerForm = extraFormFields.join(" ").toLowerCase();
 
-        const isKolkata =
-          routingHaystack.includes("kolkata") ||
-          routingHaystack.includes("calcutta") ||
-          routingHaystack.includes("west bengal") ||
-          routingHaystack.includes(" wb ") ||
-          String(formId).includes("9031550");
+        // Helper functions to check regional keywords
+        const matchesDelhi = (text: string) =>
+          /\b(delhi|ncr|gurgaon|gurugram|noida|faridabad|ghaziabad|haryana|new delhi)\b/i.test(text) ||
+          text.includes("delhi") ||
+          text.includes("ncr") ||
+          text.includes("gurgaon") ||
+          text.includes("gurugram") ||
+          text.includes("noida") ||
+          text.includes("faridabad") ||
+          text.includes("ghaziabad");
 
-        const isDelhi =
-          routingHaystack.includes("delhi") ||
-          routingHaystack.includes("ncr") ||
-          routingHaystack.includes("gurgaon") ||
-          routingHaystack.includes("gurugram") ||
-          routingHaystack.includes("noida") ||
-          routingHaystack.includes("faridabad") ||
-          routingHaystack.includes("ghaziabad") ||
-          String(formId).includes("1058624");
+        const matchesKolkata = (text: string) =>
+          /\b(kolkata|calcutta|west bengal|howrah|siliguri|durgapur)\b/i.test(text) ||
+          text.includes("kolkata") ||
+          text.includes("calcutta") ||
+          text.includes("west bengal") ||
+          text.includes(" wb ") ||
+          text.startsWith("wb ") ||
+          text.endsWith(" wb");
+
+        // Priority 1: Top-level Ad Campaign Name (e.g. "Delhi NCR leads" vs "Kolkata")
+        let isDelhi = matchesDelhi(lowerCampaign);
+        let isKolkata = matchesKolkata(lowerCampaign);
+
+        // Priority 2: Adset / Ad Name if campaign name was not conclusive
+        if (!isDelhi && !isKolkata) {
+          isDelhi = matchesDelhi(lowerAdset) || matchesDelhi(lowerAd);
+          isKolkata = matchesKolkata(lowerAdset) || matchesKolkata(lowerAd);
+        }
+
+        // Priority 3: Customer city or custom form questions
+        if (!isDelhi && !isKolkata) {
+          isDelhi = matchesDelhi(lowerCity) || matchesDelhi(lowerForm);
+          isKolkata = matchesKolkata(lowerCity) || matchesKolkata(lowerForm);
+        }
+
+        // Priority 4: Combined text fallback (strictly excluding form IDs so form 9031550 never overrides Delhi)
+        if (!isDelhi && !isKolkata) {
+          const combined = [lowerCampaign, lowerAdset, lowerAd, lowerCity, lowerForm].join(" ");
+          isDelhi = matchesDelhi(combined);
+          isKolkata = matchesKolkata(combined);
+        }
+
+        // Conflict resolution: Campaign name is authoritative
+        if (isDelhi && isKolkata) {
+          if (matchesDelhi(lowerCampaign) && !matchesKolkata(lowerCampaign)) {
+            isKolkata = false;
+          } else if (matchesKolkata(lowerCampaign) && !matchesDelhi(lowerCampaign)) {
+            isDelhi = false;
+          } else if (matchesDelhi(lowerCity) && !matchesKolkata(lowerCity)) {
+            isKolkata = false;
+          } else if (matchesKolkata(lowerCity) && !matchesDelhi(lowerCity)) {
+            isDelhi = false;
+          }
+        }
 
         let assignedOwnerId = "admin";
         let assignedOwnerName = "Admin";
         let routingReason = "Default Admin";
 
-        if (isKolkata) {
-          if (!leadCity) leadCity = "Kolkata";
-          const assignedUser = await getNextBranchUserRoundRobin("kolkata");
-          if (assignedUser) {
-            assignedOwnerId = assignedUser.id;
-            assignedOwnerName = assignedUser.name;
-            routingReason = `Kolkata Branch Round-Robin → ${assignedOwnerName}`;
-          }
-        } else if (isDelhi) {
+        if (isDelhi) {
           if (!leadCity) leadCity = "Delhi NCR";
           const assignedUser = await getNextBranchUserRoundRobin("delhi");
           if (assignedUser) {
             assignedOwnerId = assignedUser.id;
             assignedOwnerName = assignedUser.name;
             routingReason = `Delhi NCR Branch Round-Robin → ${assignedOwnerName}`;
+          }
+        } else if (isKolkata) {
+          if (!leadCity) leadCity = "Kolkata";
+          const assignedUser = await getNextBranchUserRoundRobin("kolkata");
+          if (assignedUser) {
+            assignedOwnerId = assignedUser.id;
+            assignedOwnerName = assignedUser.name;
+            routingReason = `Kolkata Branch Round-Robin → ${assignedOwnerName}`;
           }
         } else {
           const assignedUser = await getNextBranchUserRoundRobin("all");
@@ -318,28 +355,25 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Determine service category from adset (or campaign/ad/form)
+        // Determine service category from adset, campaign, ad, form questions, or Form ID
         // Options: "Domestic Tours", "International Tours", "Flights/Hotels", "Others"
-        const lowerAdset = (adsetName || "").toLowerCase();
-        const lowerCampaign = (campaignName || "").toLowerCase();
-        const lowerAd = (adName || "").toLowerCase();
-        const lowerForm = extraFormFields.join(" ").toLowerCase();
-
         let determinedService = "Domestic Tours"; // Default tour category
-        if (lowerAdset.includes("international")) {
-          determinedService = "International Tours";
-        } else if (lowerAdset.includes("domestic")) {
-          determinedService = "Domestic Tours";
-        } else if (
+        const stringFormId = String(formId || "");
+
+        if (
+          lowerAdset.includes("international") ||
           lowerCampaign.includes("international") ||
           lowerAd.includes("international") ||
-          lowerForm.includes("international")
+          lowerForm.includes("international") ||
+          stringFormId.includes("9031550")
         ) {
           determinedService = "International Tours";
         } else if (
+          lowerAdset.includes("domestic") ||
           lowerCampaign.includes("domestic") ||
           lowerAd.includes("domestic") ||
-          lowerForm.includes("domestic")
+          lowerForm.includes("domestic") ||
+          stringFormId.includes("1058624")
         ) {
           determinedService = "Domestic Tours";
         } else if (

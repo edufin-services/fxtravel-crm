@@ -39,48 +39,53 @@ export async function POST(request: NextRequest) {
     let delhiCount = 0;
 
     for (const lead of leads) {
-      const text = [
+      const notesAndForm = [
+        lead.notes || "",
+        lead.formNotes || "",
+      ].join(" ").toLowerCase();
+
+      const cityAndState = [
         lead.city || "",
         lead.state || "",
-        lead.notes || "",
         lead.name || "",
       ].join(" ").toLowerCase();
 
-      const isKolkata =
-        text.includes("kolkata") ||
-        text.includes("calcutta") ||
-        text.includes("west bengal") ||
-        text.includes(" wb ");
+      const matchesDelhi = (t: string) =>
+        t.includes("delhi") ||
+        t.includes("ncr") ||
+        t.includes("gurgaon") ||
+        t.includes("gurugram") ||
+        t.includes("noida") ||
+        t.includes("faridabad") ||
+        t.includes("ghaziabad");
 
-      const isDelhi =
-        text.includes("delhi") ||
-        text.includes("ncr") ||
-        text.includes("gurgaon") ||
-        text.includes("gurugram") ||
-        text.includes("noida") ||
-        text.includes("faridabad") ||
-        text.includes("ghaziabad");
+      const matchesKolkata = (t: string) =>
+        t.includes("kolkata") ||
+        t.includes("calcutta") ||
+        t.includes("west bengal") ||
+        t.includes(" wb ");
 
-      if (isKolkata && mouparna && lead.ownerId !== mouparna.id) {
-        await LeadModel.updateOne(
-          { id: lead.id },
-          {
-            $set: {
-              ownerId: mouparna.id,
-              city: "Kolkata",
-            },
-          }
-        );
-        logLeadActivity({
-          type: "lead_updated",
-          leadId: lead.id,
-          leadName: lead.name,
-          ownerId: mouparna.id,
-          channel: lead.channel,
-          details: `Lead transferred to Mouparna Banerjee (Kolkata Campaign Rule)`,
-        }).catch(() => null);
-        kolkataCount++;
-      } else if (isDelhi && sheeba && lead.ownerId !== sheeba.id) {
+      let isDelhi = false;
+      let isKolkata = false;
+
+      // Priority 1: Check travel itinerary/inquiry notes (e.g. "Delhi to Bangkok", "Delhi to Phuket")
+      if (matchesDelhi(notesAndForm) && !matchesKolkata(notesAndForm)) {
+        isDelhi = true;
+      } else if (matchesKolkata(notesAndForm) && !matchesDelhi(notesAndForm)) {
+        isKolkata = true;
+      } else {
+        // Priority 2: City / state
+        isDelhi = matchesDelhi(cityAndState);
+        isKolkata = matchesKolkata(cityAndState);
+      }
+
+      // If both or conflict, notes take precedence over city
+      if (isDelhi && isKolkata) {
+        if (matchesDelhi(notesAndForm)) isKolkata = false;
+        else if (matchesKolkata(notesAndForm)) isDelhi = false;
+      }
+
+      if (isDelhi && sheeba && lead.ownerId !== sheeba.id) {
         await LeadModel.updateOne(
           { id: lead.id },
           {
@@ -99,6 +104,25 @@ export async function POST(request: NextRequest) {
           details: `Lead transferred to Sheeba Birla (Delhi NCR Campaign Rule)`,
         }).catch(() => null);
         delhiCount++;
+      } else if (isKolkata && mouparna && lead.ownerId !== mouparna.id) {
+        await LeadModel.updateOne(
+          { id: lead.id },
+          {
+            $set: {
+              ownerId: mouparna.id,
+              city: "Kolkata",
+            },
+          }
+        );
+        logLeadActivity({
+          type: "lead_updated",
+          leadId: lead.id,
+          leadName: lead.name,
+          ownerId: mouparna.id,
+          channel: lead.channel,
+          details: `Lead transferred to Mouparna Banerjee (Kolkata Campaign Rule)`,
+        }).catch(() => null);
+        kolkataCount++;
       }
     }
 

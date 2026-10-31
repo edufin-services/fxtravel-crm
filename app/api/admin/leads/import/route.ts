@@ -44,12 +44,113 @@ function cleanPhoneNumber(val: unknown): { clean: string; raw: string } {
   return { clean, raw };
 }
 
+function parseCSVText(text: string): Record<string, any>[] {
+  const cleanText = text.replace(/^\uFEFF/, "");
+  if (!cleanText.trim()) return [];
+
+  const lines: string[][] = [];
+  let currentRow: string[] = [];
+  let currentCell = "";
+  let inQuotes = false;
+
+  const firstLineSample = cleanText.split(/\r\n|\n|\r/)[0] || "";
+  const commaCount = (firstLineSample.match(/,/g) || []).length;
+  const semiCount = (firstLineSample.match(/;/g) || []).length;
+  const tabCount = (firstLineSample.match(/\t/g) || []).length;
+  let delim = ",";
+  if (semiCount > commaCount && semiCount > tabCount) delim = ";";
+  else if (tabCount > commaCount && tabCount > semiCount) delim = "\t";
+
+  for (let i = 0; i < cleanText.length; i++) {
+    const char = cleanText[i];
+    const nextChar = cleanText[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        currentCell += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === delim && !inQuotes) {
+      currentRow.push(currentCell.trim());
+      currentCell = "";
+    } else if ((char === "\r" || char === "\n") && !inQuotes) {
+      if (char === "\r" && nextChar === "\n") {
+        i++;
+      }
+      currentRow.push(currentCell.trim());
+      currentCell = "";
+      if (currentRow.some((c) => c.length > 0)) {
+        lines.push(currentRow);
+      }
+      currentRow = [];
+    } else {
+      currentCell += char;
+    }
+  }
+
+  if (currentCell.length > 0 || currentRow.length > 0) {
+    currentRow.push(currentCell.trim());
+    if (currentRow.some((c) => c.length > 0)) {
+      lines.push(currentRow);
+    }
+  }
+
+  if (lines.length === 0) return [];
+
+  const firstRow = lines[0];
+  const hasPhoneInFirstRow = firstRow.some((val) => val.replace(/\D/g, "").length >= 8);
+  const hasHeaderKeywords = firstRow.some((val) => {
+    const lower = val.toLowerCase().replace(/[\s_-]+/g, "");
+    return (
+      lower.includes("name") ||
+      lower.includes("phone") ||
+      lower.includes("mobile") ||
+      lower.includes("contact") ||
+      lower.includes("platform") ||
+      lower.includes("source") ||
+      lower.includes("whatsapp") ||
+      lower.includes("channel")
+    );
+  });
+
+  const isFirstRowHeader = hasHeaderKeywords || (!hasPhoneInFirstRow && lines.length > 1);
+
+  if (isFirstRowHeader) {
+    const headers = firstRow;
+    return lines.slice(1).map((row) => {
+      const record: Record<string, any> = {};
+      headers.forEach((h, idx) => {
+        const key = h.trim() || `col_${idx}`;
+        record[key] = row[idx] !== undefined ? row[idx] : "";
+      });
+      return record;
+    });
+  } else {
+    return lines.map((row) => {
+      const record: Record<string, any> = {};
+      row.forEach((v, idx) => {
+        record[`col_${idx}`] = v;
+      });
+      return record;
+    });
+  }
+}
+
 function extractRowsFromWorkbook(buffer: ArrayBuffer | Buffer, fileName: string = "") {
-  const wb = XLSX.read(buffer, { type: "buffer" });
-  const sheetName = wb.SheetNames[0];
-  if (!sheetName) return [];
-  const sheet = wb.Sheets[sheetName];
-  const rawRows: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+  let rawRows: Record<string, any>[] = [];
+
+  if (fileName.toLowerCase().endsWith(".csv")) {
+    const text = new TextDecoder("utf-8").decode(buffer);
+    rawRows = parseCSVText(text);
+  } else {
+    const wb = XLSX.read(buffer, { type: "buffer" });
+    const sheetName = wb.SheetNames[0];
+    if (!sheetName) return [];
+    const sheet = wb.Sheets[sheetName];
+    rawRows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+  }
 
   const parsedLeads: Array<{
     name: string;

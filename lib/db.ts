@@ -109,6 +109,7 @@ export type Lead = {
   otcAmount?: number;
   totalServiceCharge?: number;
   // Client Visit Scope Fields
+  isClientVisit?: boolean;
   companyName?: string;
   designation?: string;
   yearlyVolume?: number;
@@ -551,13 +552,25 @@ export async function deleteUser(id: string): Promise<void> {
 
 export async function getAllLeads(): Promise<Lead[]> {
   await dbConnect();
-  const docs = await LeadModel.find({ deletedAt: null }).sort({ createdAt: -1 });
+  const docs = await LeadModel.find({ isClientVisit: { $ne: true }, deletedAt: null }).sort({ createdAt: -1 });
   return docs.map((d) => toPlain<Lead>(d));
 }
 
 export async function getLeadsByOwner(ownerId: string): Promise<Lead[]> {
   await dbConnect();
-  const docs = await LeadModel.find({ ownerId, deletedAt: null }).sort({ createdAt: -1 });
+  const docs = await LeadModel.find({ isClientVisit: { $ne: true }, ownerId, deletedAt: null }).sort({ createdAt: -1 });
+  return docs.map((d) => toPlain<Lead>(d));
+}
+
+export async function getAllClientVisits(): Promise<Lead[]> {
+  await dbConnect();
+  const docs = await LeadModel.find({ isClientVisit: true, deletedAt: null }).sort({ createdAt: -1 });
+  return docs.map((d) => toPlain<Lead>(d));
+}
+
+export async function getClientVisitsByOwner(ownerId: string): Promise<Lead[]> {
+  await dbConnect();
+  const docs = await LeadModel.find({ isClientVisit: true, ownerId, deletedAt: null }).sort({ createdAt: -1 });
   return docs.map((d) => toPlain<Lead>(d));
 }
 

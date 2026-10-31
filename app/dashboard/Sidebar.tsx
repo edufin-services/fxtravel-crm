@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import Logo from "../components/Logo";
 import NavLink from "./NavLink";
 import {
@@ -13,12 +14,14 @@ import {
   MailIcon,
   TrashIcon,
   UserCheckIcon,
+  ClientVisitIcon,
 } from "./icons";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: <GridIcon /> },
   { href: "/dashboard/leads", label: "Leads", icon: <FunnelIcon /> },
   { href: "/dashboard/assigned-leads", label: "Assigned Leads", icon: <UserCheckIcon /> },
+  { href: "/dashboard/client-visits", label: "Client Visits", icon: <ClientVisitIcon /> },
   { href: "/dashboard/chats", label: "Chats", icon: <ChatIcon /> },
   { href: "/dashboard/calendar", label: "Calendar", icon: <CalendarIcon /> },
   { href: "/dashboard/lists", label: "Lists", icon: <ListIcon /> },
@@ -28,8 +31,14 @@ const NAV_ITEMS = [
 ];
 
 export default function Sidebar() {
+  const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPendingHref(null);
+  }, [pathname]);
 
   useEffect(() => {
     setMounted(true);
@@ -66,11 +75,32 @@ export default function Sidebar() {
 
       {/* Nav List */}
       <nav className="mt-4 flex flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden">
-        {NAV_ITEMS.map((item) => (
-          <NavLink key={item.href} href={item.href} icon={item.icon} collapsed={collapsed}>
-            {item.label}
-          </NavLink>
-        ))}
+        {NAV_ITEMS.map((item) => {
+          const targetPath = pendingHref ?? pathname;
+          const isActive =
+            item.href === "/dashboard"
+              ? targetPath === "/dashboard"
+              : targetPath === item.href ||
+                targetPath.startsWith(item.href + "/") ||
+                targetPath.startsWith(item.href + "?");
+
+          return (
+            <NavLink
+              key={item.href}
+              href={item.href}
+              icon={item.icon}
+              collapsed={collapsed}
+              isActive={isActive}
+              onClick={() => {
+                if (item.href !== pathname) {
+                  setPendingHref(item.href);
+                }
+              }}
+            >
+              {item.label}
+            </NavLink>
+          );
+        })}
       </nav>
 
       {/* Footer Minimize / Expand Toggle matching reference CRM */}

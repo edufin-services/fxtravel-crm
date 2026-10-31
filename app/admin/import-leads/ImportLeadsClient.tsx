@@ -53,12 +53,109 @@ const initials = (name: string) =>
     .join("")
     .toUpperCase();
 
+// Client-side RFC-4180 compliant CSV parser that handles quotes, line breaks, commas, semicolons, and UTF-8 BOM
+function parseCSVText(text: string): Record<string, any>[] {
+  const cleanText = text.replace(/^\uFEFF/, "");
+  if (!cleanText.trim()) return [];
+
+  const lines: string[][] = [];
+  let currentRow: string[] = [];
+  let currentCell = "";
+  let inQuotes = false;
+
+  const firstLineSample = cleanText.split(/\r\n|\n|\r/)[0] || "";
+  const commaCount = (firstLineSample.match(/,/g) || []).length;
+  const semiCount = (firstLineSample.match(/;/g) || []).length;
+  const tabCount = (firstLineSample.match(/\t/g) || []).length;
+  let delim = ",";
+  if (semiCount > commaCount && semiCount > tabCount) delim = ";";
+  else if (tabCount > commaCount && tabCount > semiCount) delim = "\t";
+
+  for (let i = 0; i < cleanText.length; i++) {
+    const char = cleanText[i];
+    const nextChar = cleanText[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        currentCell += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === delim && !inQuotes) {
+      currentRow.push(currentCell.trim());
+      currentCell = "";
+    } else if ((char === "\r" || char === "\n") && !inQuotes) {
+      if (char === "\r" && nextChar === "\n") {
+        i++;
+      }
+      currentRow.push(currentCell.trim());
+      currentCell = "";
+      if (currentRow.some((c) => c.length > 0)) {
+        lines.push(currentRow);
+      }
+      currentRow = [];
+    } else {
+      currentCell += char;
+    }
+  }
+
+  if (currentCell.length > 0 || currentRow.length > 0) {
+    currentRow.push(currentCell.trim());
+    if (currentRow.some((c) => c.length > 0)) {
+      lines.push(currentRow);
+    }
+  }
+
+  if (lines.length === 0) return [];
+
+  const firstRow = lines[0];
+  const hasPhoneInFirstRow = firstRow.some((val) => val.replace(/\D/g, "").length >= 8);
+  const hasHeaderKeywords = firstRow.some((val) => {
+    const lower = val.toLowerCase().replace(/[\s_-]+/g, "");
+    return (
+      lower.includes("name") ||
+      lower.includes("phone") ||
+      lower.includes("mobile") ||
+      lower.includes("contact") ||
+      lower.includes("platform") ||
+      lower.includes("source") ||
+      lower.includes("whatsapp") ||
+      lower.includes("channel")
+    );
+  });
+
+  const isFirstRowHeader = hasHeaderKeywords || (!hasPhoneInFirstRow && lines.length > 1);
+
+  if (isFirstRowHeader) {
+    const headers = firstRow;
+    return lines.slice(1).map((row) => {
+      const record: Record<string, any> = {};
+      headers.forEach((h, idx) => {
+        const key = h.trim() || `col_${idx}`;
+        record[key] = row[idx] !== undefined ? row[idx] : "";
+      });
+      return record;
+    });
+  } else {
+    return lines.map((row) => {
+      const record: Record<string, any> = {};
+      row.forEach((v, idx) => {
+        record[`col_${idx}`] = v;
+      });
+      return record;
+    });
+  }
+}
+
 export default function ImportLeadsClient({
   initialLeads,
   users,
+  existingCrmPhones = [],
 }: {
   initialLeads: ImportedLead[];
   users: UserItem[];
+  existingCrmPhones?: string[];
 }) {
   const [leads, setLeads] = useState<ImportedLead[]>(initialLeads);
   const [activeTab, setActiveTab] = useState<"all" | "pending" | "assigned">("all");
@@ -135,9 +232,10 @@ export default function ImportLeadsClient({
 
   // Preview deduplication analysis
   const previewAnalysis = useMemo(() => {
-    const existingPhoneSet = new Set(
-      leads.map((l) => (l.phone || "").replace(/\D/g, "").slice(-10)).filter((p) => p.length >= 7)
-    );
+    const existingPhoneSet = new Set([
+      ...existingCrmPhones,
+      ...leads.map((l) => (l.phone || "").replace(/\D/g, "").slice(-10)).filter((p) => p.length >= 7),
+    ]);
     const seenInPreview = new Set<string>();
 
     let newCount = 0;
@@ -152,7 +250,7 @@ export default function ImportLeadsClient({
 
       if (cleanP && existingPhoneSet.has(cleanP)) {
         isDuplicate = true;
-        reason = "Already in CRM / Queue";
+        reason = "Already in CRM / Database";
       } else if (seenInPreview.has(key)) {
         isDuplicate = true;
         reason = "Duplicate in this file";
@@ -167,147 +265,188 @@ export default function ImportLeadsClient({
     });
 
     return { analyzed, newCount, dupCount };
-  }, [parsedPreview, leads]);
+  }, [parsedPreview, leads, existingCrmPhones]);
 
-  // Handle client-side file reading and parsing (supports .csv, .xls, .xlsx)
+  // Process extracted rows (from either CSV or Excel) into clean lead objects
+  function processParsedRows(rows: Record<string, any>[], fileName: string) {
+    if (rows.length === 0) {
+      showToast("No rows found in the uploaded file.", "error");
+      setIsUploading(false);
+      return;
+    }
+
+    const extracted: Array<{
+      name: string;
+      phone: string;
+      rawPhone: string;
+      platform: string;
+      channel: Channel;
+    }> = [];
+
+    for (const row of rows) {
+      let nameVal = "";
+      let phoneVal = "";
+      let platformVal = "";
+
+      for (const [key, val] of Object.entries(row)) {
+        const normalizedKey = key.trim().toLowerCase().replace(/[\s_-]+/g, "");
+        if (
+          normalizedKey === "fullname" ||
+          normalizedKey === "name" ||
+          normalizedKey === "clientname" ||
+          normalizedKey === "customername" ||
+          normalizedKey === "leadname" ||
+          normalizedKey === "contactname" ||
+          normalizedKey === "personname" ||
+          normalizedKey === "person" ||
+          normalizedKey === "user"
+        ) {
+          nameVal = String(val).trim();
+        } else if (
+          normalizedKey === "whatsappnumber" ||
+          normalizedKey === "whatsapp" ||
+          normalizedKey === "phone" ||
+          normalizedKey === "phonenumber" ||
+          normalizedKey === "mobile" ||
+          normalizedKey === "mobilenumber" ||
+          normalizedKey === "number" ||
+          normalizedKey === "contact" ||
+          normalizedKey === "contactno" ||
+          normalizedKey === "contactnumber" ||
+          normalizedKey === "cell"
+        ) {
+          phoneVal = String(val).trim();
+        } else if (
+          normalizedKey === "platform" ||
+          normalizedKey === "source" ||
+          normalizedKey === "channel" ||
+          normalizedKey === "sourceplatform" ||
+          normalizedKey === "adplatform" ||
+          normalizedKey === "social" ||
+          normalizedKey === "campaign"
+        ) {
+          platformVal = String(val).trim();
+        }
+      }
+
+      // Fallback if column names don't match headers: positional fallback
+      if (!nameVal && !phoneVal && Object.keys(row).length > 0) {
+        const vals = Object.values(row).map((v) => String(v).trim());
+        if (vals.length >= 3) {
+          platformVal = vals[0];
+          nameVal = vals[1];
+          phoneVal = vals[2];
+        } else if (vals.length === 2) {
+          nameVal = vals[0];
+          phoneVal = vals[1];
+        }
+      }
+
+      if (!nameVal && !phoneVal) continue;
+
+      // Normalize Phone
+      const raw = phoneVal;
+      const digits = raw.replace(/\D/g, "");
+      let clean = digits;
+      if (digits.length === 12 && digits.startsWith("91")) clean = digits.slice(2);
+      else if (digits.length === 11 && digits.startsWith("0")) clean = digits.slice(1);
+      else if (digits.length > 10) clean = digits.slice(-10);
+
+      // Normalize Platform
+      let platform = platformVal.toLowerCase();
+      let channel: Channel = "Facebook";
+      if (platform === "fb" || platform.includes("facebook") || platform.includes("meta")) {
+        platform = "fb";
+        channel = "Facebook";
+      } else if (platform === "ig" || platform.includes("instagram") || platform.includes("insta")) {
+        platform = "ig";
+        channel = "Instagram";
+      } else if (platform.includes("wa") || platform.includes("whatsapp")) {
+        platform = "whatsapp";
+        channel = "WhatsApp";
+      } else if (platform.includes("ad") || platform.includes("google")) {
+        platform = "ads";
+        channel = "Ads";
+      }
+
+      extracted.push({
+        name: nameVal || "Unnamed Lead",
+        phone: clean || raw || "—",
+        rawPhone: raw,
+        platform: platform || "fb",
+        channel,
+      });
+    }
+
+    if (extracted.length === 0) {
+      showToast("Could not find valid name or phone columns in the file.", "error");
+      setIsUploading(false);
+      return;
+    }
+
+    setParsedPreview(extracted);
+    setPreviewFileName(fileName);
+    setShowPreviewModal(true);
+  }
+
+  // Handle client-side file reading and parsing (supports both CSV plain text and Excel binary)
   function parseExcelFile(file: File) {
     setIsUploading(true);
-    const reader = new FileReader();
+    const fileNameLower = file.name.toLowerCase();
+    const isCsv =
+      fileNameLower.endsWith(".csv") ||
+      file.type.includes("csv") ||
+      file.type.includes("text/plain");
 
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: "array" });
-        const firstSheetName = workbook.SheetNames[0];
-        if (!firstSheetName) {
-          showToast("The uploaded file does not contain any readable sheets or data.", "error");
+    if (isCsv) {
+      // Use native UTF-8 text reader for CSV files to completely avoid SheetJS codepage/browser bundle crashes
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const text = (e.target?.result as string) || "";
+          const rows = parseCSVText(text);
+          processParsedRows(rows, file.name);
+        } catch (err: any) {
+          showToast(`Failed to parse CSV file: ${err?.message || "Unknown error"}`, "error");
+        } finally {
           setIsUploading(false);
-          return;
         }
-
-        const worksheet = workbook.Sheets[firstSheetName];
-        const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-
-        if (rows.length === 0) {
-          showToast("No rows found in the uploaded file.", "error");
-          setIsUploading(false);
-          return;
-        }
-
-        const extracted: Array<{
-          name: string;
-          phone: string;
-          rawPhone: string;
-          platform: string;
-          channel: Channel;
-        }> = [];
-
-        for (const row of rows) {
-          let nameVal = "";
-          let phoneVal = "";
-          let platformVal = "";
-
-          for (const [key, val] of Object.entries(row)) {
-            const normalizedKey = key.trim().toLowerCase().replace(/[\s_-]+/g, "");
-            if (
-              normalizedKey === "fullname" ||
-              normalizedKey === "name" ||
-              normalizedKey === "clientname" ||
-              normalizedKey === "customername" ||
-              normalizedKey === "leadname" ||
-              normalizedKey === "contactname"
-            ) {
-              nameVal = String(val).trim();
-            } else if (
-              normalizedKey === "whatsappnumber" ||
-              normalizedKey === "whatsapp" ||
-              normalizedKey === "phone" ||
-              normalizedKey === "phonenumber" ||
-              normalizedKey === "mobile" ||
-              normalizedKey === "mobilenumber" ||
-              normalizedKey === "number" ||
-              normalizedKey === "contact" ||
-              normalizedKey === "contactno"
-            ) {
-              phoneVal = String(val).trim();
-            } else if (
-              normalizedKey === "platform" ||
-              normalizedKey === "source" ||
-              normalizedKey === "channel" ||
-              normalizedKey === "sourceplatform" ||
-              normalizedKey === "adplatform" ||
-              normalizedKey === "social"
-            ) {
-              platformVal = String(val).trim();
-            }
-          }
-
-          // Fallback if column names don't match headers: positional fallback
-          if (!nameVal && !phoneVal && Object.keys(row).length > 0) {
-            const vals = Object.values(row).map((v) => String(v).trim());
-            if (vals.length >= 3) {
-              platformVal = vals[0];
-              nameVal = vals[1];
-              phoneVal = vals[2];
-            } else if (vals.length === 2) {
-              nameVal = vals[0];
-              phoneVal = vals[1];
-            }
-          }
-
-          if (!nameVal && !phoneVal) continue;
-
-          // Normalize Phone
-          const raw = phoneVal;
-          const digits = raw.replace(/\D/g, "");
-          let clean = digits;
-          if (digits.length === 12 && digits.startsWith("91")) clean = digits.slice(2);
-          else if (digits.length === 11 && digits.startsWith("0")) clean = digits.slice(1);
-          else if (digits.length > 10) clean = digits.slice(-10);
-
-          // Normalize Platform
-          let platform = platformVal.toLowerCase();
-          let channel: Channel = "Facebook";
-          if (platform === "fb" || platform.includes("facebook") || platform.includes("meta")) {
-            platform = "fb";
-            channel = "Facebook";
-          } else if (platform === "ig" || platform.includes("instagram") || platform.includes("insta")) {
-            platform = "ig";
-            channel = "Instagram";
-          } else if (platform.includes("wa") || platform.includes("whatsapp")) {
-            platform = "whatsapp";
-            channel = "WhatsApp";
-          } else if (platform.includes("ad") || platform.includes("google")) {
-            platform = "ads";
-            channel = "Ads";
-          }
-
-          extracted.push({
-            name: nameVal || "Unnamed Lead",
-            phone: clean || raw || "—",
-            rawPhone: raw,
-            platform: platform || "fb",
-            channel,
-          });
-        }
-
-        if (extracted.length === 0) {
-          showToast("Could not find valid name or phone columns in the file.", "error");
-          setIsUploading(false);
-          return;
-        }
-
-        setParsedPreview(extracted);
-        setPreviewFileName(file.name);
-        setShowPreviewModal(true);
-      } catch (err: any) {
-        showToast(`Failed to parse file: ${err?.message || "Unknown error"}`, "error");
-      } finally {
+      };
+      reader.onerror = () => {
+        showToast("Error reading the CSV file.", "error");
         setIsUploading(false);
-      }
-    };
+      };
+      reader.readAsText(file, "UTF-8");
+    } else {
+      // Excel (.xlsx, .xls) binary reader
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const xlsxLib: any = (XLSX as any)?.utils ? XLSX : (XLSX as any)?.default || XLSX;
+          const workbook = xlsxLib.read(data, { type: "array" });
+          const firstSheetName = workbook.SheetNames[0];
+          if (!firstSheetName) {
+            showToast("The uploaded file does not contain any readable sheets or data.", "error");
+            setIsUploading(false);
+            return;
+          }
 
-    reader.readAsArrayBuffer(file);
+          const worksheet = workbook.Sheets[firstSheetName];
+          const rows: Record<string, any>[] = xlsxLib.utils.sheet_to_json(worksheet, { defval: "" });
+          processParsedRows(rows, file.name);
+        } catch (err: any) {
+          showToast(`Failed to parse file: ${err?.message || "Unknown error"}`, "error");
+        } finally {
+          setIsUploading(false);
+        }
+      };
+      reader.onerror = () => {
+        showToast("Error reading the Excel file.", "error");
+        setIsUploading(false);
+      };
+      reader.readAsArrayBuffer(file);
+    }
   }
 
   function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
@@ -320,7 +459,22 @@ export default function ImportLeadsClient({
 
   // Upload parsed leads to server with automatic deduplication
   async function confirmUploadLeads(assignToUserId?: string) {
-    if (parsedPreview.length === 0) return;
+    const cleanNonDuplicates = previewAnalysis.analyzed
+      .filter((p) => !p.isDuplicate)
+      .map((p) => ({
+        name: p.name,
+        phone: p.phone,
+        rawPhone: p.rawPhone,
+        platform: p.platform,
+        channel: p.channel,
+        fileName: previewFileName,
+      }));
+
+    if (cleanNonDuplicates.length === 0) {
+      showToast("All leads in this file already exist in the CRM database. No duplicates were added.", "error");
+      return;
+    }
+
     setIsUploading(true);
 
     try {
@@ -328,10 +482,7 @@ export default function ImportLeadsClient({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          leads: parsedPreview.map((p) => ({
-            ...p,
-            fileName: previewFileName,
-          })),
+          leads: cleanNonDuplicates,
           fileName: previewFileName,
         }),
       });
@@ -618,13 +769,25 @@ export default function ImportLeadsClient({
       { platform: "ig", full_name: "Bittu Kumeti", whatsapp_number: "+919098673077" },
     ];
 
-    const ws = XLSX.utils.json_to_sheet(sampleData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Leads");
     if (format === "csv") {
-      XLSX.writeFile(wb, "crm_leads_sample_template.csv", { bookType: "csv" });
+      const csvContent =
+        "platform,full_name,whatsapp_number\n" +
+        sampleData.map((d) => `"${d.platform}","${d.full_name}","${d.whatsapp_number}"`).join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "crm_leads_sample_template.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     } else {
-      XLSX.writeFile(wb, "crm_leads_sample_template.xlsx");
+      const xlsxLib: any = (XLSX as any)?.utils ? XLSX : (XLSX as any)?.default || XLSX;
+      const ws = xlsxLib.utils.json_to_sheet(sampleData);
+      const wb = xlsxLib.utils.book_new();
+      xlsxLib.utils.book_append_sheet(wb, ws, "Leads");
+      xlsxLib.writeFile(wb, "crm_leads_sample_template.xlsx");
     }
   }
 

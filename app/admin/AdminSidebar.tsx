@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import FxLogoIcon from "../components/FxLogoIcon";
 
 type NavItem = {
@@ -29,6 +29,17 @@ const NAV: NavItem[] = [
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
         <path d="M22 12h-4l-3 9L9 3l-3 9H2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    href: "/admin/import-leads",
+    label: "Import Leads",
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
+        <polyline points="17 8 12 3 7 8" strokeLinecap="round" strokeLinejoin="round" />
+        <line x1="12" y1="3" x2="12" y2="15" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     ),
   },
@@ -128,7 +139,13 @@ const NAV: NavItem[] = [
 
 export default function AdminSidebar({ adminEmail }: { adminEmail: string }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPendingHref(null);
+  }, [pathname]);
 
   useEffect(() => {
     const saved = localStorage.getItem("admin_sidebar_collapsed");
@@ -186,12 +203,33 @@ export default function AdminSidebar({ adminEmail }: { adminEmail: string }) {
       {/* Nav with Active Tab Highlighting */}
       <nav className="mt-3 flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden">
         {NAV.map((item) => {
-          const isActive = pathname === item.href || (item.href !== "/admin/dashboard" && pathname.startsWith(item.href));
+          const targetPath = pendingHref ?? pathname;
+          const isActive =
+            targetPath === item.href ||
+            (item.href !== "/admin/dashboard" &&
+              (targetPath.startsWith(item.href + "/") || targetPath.startsWith(item.href + "?") || targetPath === item.href));
+          const isPending = pendingHref === item.href;
+
+          const handleWarm = () => {
+            try {
+              router.prefetch(item.href);
+            } catch {}
+          };
+
           return (
             <Link
               key={item.href}
               href={item.href}
+              prefetch={true}
               title={collapsed ? item.label : undefined}
+              onMouseEnter={handleWarm}
+              onPointerEnter={handleWarm}
+              onTouchStart={handleWarm}
+              onClick={() => {
+                if (item.href !== pathname) {
+                  setPendingHref(item.href);
+                }
+              }}
               className={`group relative flex items-center rounded-xl text-[12px] font-medium transition-all duration-150 ${
                 collapsed ? "justify-center px-1.5 py-1.5" : "gap-2 px-2.5 py-1.5"
               } ${
@@ -204,13 +242,20 @@ export default function AdminSidebar({ adminEmail }: { adminEmail: string }) {
                 <span
                   className={`absolute ${
                     collapsed ? "left-0.5" : "left-0"
-                  } top-1/2 -translate-y-1/2 w-1 h-4.5 rounded-r-full bg-rose-600`}
+                  } top-1/2 -translate-y-1/2 w-1 h-4.5 rounded-r-full bg-rose-600 transition-all duration-150`}
                 />
               )}
-              <span className={`flex items-center justify-center shrink-0 [&>svg]:w-3.5 [&>svg]:h-3.5 [&>svg]:stroke-[1.8] ${isActive ? "text-rose-600" : "text-zinc-400 group-hover:text-zinc-600"}`}>
+              <span className={`flex items-center justify-center shrink-0 [&>svg]:w-3.5 [&>svg]:h-3.5 [&>svg]:stroke-[1.8] ${isActive ? "text-rose-600" : "text-zinc-400 group-hover:text-zinc-600"} ${isPending ? "animate-pulse" : ""}`}>
                 {item.icon}
               </span>
               {!collapsed && <span className="truncate flex-1 tracking-tight">{item.label}</span>}
+              {!collapsed && isPending && (
+                <span className="shrink-0 flex items-center justify-center text-rose-600 animate-spin ml-auto">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                </span>
+              )}
             </Link>
           );
         })}

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getAllUsers, getImportedLeads } from "@/lib/db";
+import { getAllLeads, getAllUsers, getImportedLeads } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import ImportLeadsClient from "./ImportLeadsClient";
 
@@ -9,10 +9,15 @@ export default async function AdminImportLeadsPage() {
   const session = await getSession();
   if (!session?.isAdmin) redirect("/login");
 
-  const [importedLeads, users] = await Promise.all([
+  const [importedLeads, users, allCrmLeads] = await Promise.all([
     getImportedLeads(),
     getAllUsers(),
+    getAllLeads(),
   ]);
+
+  const existingCrmPhones = allCrmLeads
+    .map((l) => (l.phone || "").replace(/\D/g, "").slice(-10))
+    .filter((p) => p.length >= 7);
 
   const sanitizedUsers = users.map((u) => ({
     id: u.id,
@@ -27,6 +32,7 @@ export default async function AdminImportLeadsPage() {
     <ImportLeadsClient
       initialLeads={importedLeads}
       users={sanitizedUsers}
+      existingCrmPhones={existingCrmPhones}
     />
   );
 }

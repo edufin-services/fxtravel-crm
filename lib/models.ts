@@ -87,6 +87,7 @@ const LeadSchema = new Schema({
   corporateStatus: { type: String, enum: ["none", "pending_hod_approval", "approved", "rejected"], default: "none" },
 
   // Client Visit Scope Fields
+  isClientVisit: { type: Boolean, default: false, index: true },
   companyName: String,
   designation: String,
   yearlyVolume: { type: Number, default: 0 },

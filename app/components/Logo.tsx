@@ -31,10 +31,10 @@ export default function Logo({
   return (
     <Link href="/" className={`flex items-center gap-2 font-semibold ${className}`}>
       <Image
-        src="/logo.png"
+        src={dark ? "/logo-dark.png" : "/logo.png"}
         alt="Fxpertise Travel & Forex"
         width={160}
-        height={70}
+        height={86}
         className={imgClassName}
         priority
       />

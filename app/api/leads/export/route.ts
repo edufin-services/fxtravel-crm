@@ -17,6 +17,9 @@ export async function GET(request: NextRequest) {
   const stage = searchParams.get("stage")?.trim();
   const channel = searchParams.get("channel")?.trim();
   const query = searchParams.get("q")?.trim().toLowerCase();
+  const startDate = searchParams.get("startDate")?.trim();
+  const endDate = searchParams.get("endDate")?.trim();
+  const datePreset = searchParams.get("datePreset")?.trim();
 
   // 1. Fetch leads based on role
   let leads = session.isAdmin ? await getAllLeads() : await getLeadsByOwner(session.userId!);
@@ -38,6 +41,43 @@ export async function GET(request: NextRequest) {
         (l.email && l.email.toLowerCase().includes(query)) ||
         (l.city && l.city.toLowerCase().includes(query))
     );
+  }
+
+  // Date filtering
+  if (datePreset && datePreset !== "All Dates" && datePreset !== "All Time") {
+    const now = new Date();
+    if (datePreset === "Today") {
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
+      const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
+      leads = leads.filter((l) => {
+        const t = new Date(l.createdAt).getTime();
+        return t >= startOfToday && t <= endOfToday;
+      });
+    } else if (datePreset === "Yesterday") {
+      const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0).getTime();
+      const endOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999).getTime();
+      leads = leads.filter((l) => {
+        const t = new Date(l.createdAt).getTime();
+        return t >= startOfYesterday && t <= endOfYesterday;
+      });
+    } else if (datePreset === "Last 7 Days" || datePreset === "7 Days") {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7, 0, 0, 0, 0).getTime();
+      leads = leads.filter((l) => new Date(l.createdAt).getTime() >= d);
+    } else if (datePreset === "Last 30 Days" || datePreset === "30 Days") {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30, 0, 0, 0, 0).getTime();
+      leads = leads.filter((l) => new Date(l.createdAt).getTime() >= d);
+    }
+  }
+
+  if (startDate) {
+    const [sy, sm, sd] = startDate.split("-").map(Number);
+    const start = new Date(sy, (sm || 1) - 1, sd || 1, 0, 0, 0, 0).getTime();
+    leads = leads.filter((l) => new Date(l.createdAt).getTime() >= start);
+  }
+  if (endDate) {
+    const [ey, em, ed] = endDate.split("-").map(Number);
+    const end = new Date(ey, (em || 1) - 1, ed || 1, 23, 59, 59, 999).getTime();
+    leads = leads.filter((l) => new Date(l.createdAt).getTime() <= end);
   }
 
   const dateStr = new Date().toISOString().slice(0, 10);

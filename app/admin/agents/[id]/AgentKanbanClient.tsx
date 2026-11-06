@@ -500,30 +500,34 @@ export default function AgentKanbanClient({
         (serviceFilter === "Domestic Tours" && (l.services?.includes("Tours & Packages") || l.serviceType === "Tours & Packages"));
 
       let matchDate = true;
-      if (datePreset !== "All Dates") {
+      if (datePreset !== "All Dates" && datePreset !== "All Time") {
         const leadTime = new Date(l.createdAt).getTime();
         const now = new Date();
 
         if (datePreset === "Today") {
-          const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-          matchDate = leadTime >= startOfToday;
-        } else if (datePreset === "Last 7 Days") {
-          const d = new Date();
-          d.setDate(d.getDate() - 7);
+          const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
+          const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
+          matchDate = leadTime >= startOfToday && leadTime <= endOfToday;
+        } else if (datePreset === "Yesterday") {
+          const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0).getTime();
+          const endOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999).getTime();
+          matchDate = leadTime >= startOfYesterday && leadTime <= endOfYesterday;
+        } else if (datePreset === "Last 7 Days" || datePreset === "7 Days") {
+          const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7, 0, 0, 0, 0);
           matchDate = leadTime >= d.getTime();
-        } else if (datePreset === "Last 30 Days") {
-          const d = new Date();
-          d.setDate(d.getDate() - 30);
+        } else if (datePreset === "Last 30 Days" || datePreset === "30 Days") {
+          const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30, 0, 0, 0, 0);
           matchDate = leadTime >= d.getTime();
-        } else if (datePreset === "Custom Range") {
+        } else if (datePreset === "Custom Range" || datePreset === "Custom") {
           if (startDate) {
-            const start = new Date(startDate).getTime();
+            const [sy, sm, sd] = startDate.split("-").map(Number);
+            const start = new Date(sy, (sm || 1) - 1, sd || 1, 0, 0, 0, 0).getTime();
             matchDate = matchDate && leadTime >= start;
           }
           if (endDate) {
-            const end = new Date(endDate);
-            end.setHours(23, 59, 59, 999);
-            matchDate = matchDate && leadTime <= end.getTime();
+            const [ey, em, ed] = endDate.split("-").map(Number);
+            const end = new Date(ey, (em || 1) - 1, ed || 1, 23, 59, 59, 999).getTime();
+            matchDate = matchDate && leadTime <= end;
           }
         }
       }
@@ -737,6 +741,7 @@ export default function AgentKanbanClient({
               >
                 <option value="All Dates">All Time</option>
                 <option value="Today">Today</option>
+                <option value="Yesterday">Yesterday</option>
                 <option value="Last 7 Days">Last 7 Days</option>
                 <option value="Last 30 Days">Last 30 Days</option>
                 <option value="Custom Range">Custom Range</option>
